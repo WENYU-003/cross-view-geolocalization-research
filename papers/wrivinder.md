@@ -1,4 +1,3 @@
-cat > papers/wrivinder.md <<'EOF'
 # Wrivinder: Towards Spatial Intelligence for Geo-locating Ground Images onto Satellite Imagery
 
 ## 1. Paper Task
