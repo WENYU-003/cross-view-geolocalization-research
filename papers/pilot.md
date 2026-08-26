@@ -1,4 +1,3 @@
-cat > papers/pilot.md <<'EOF'
 # PiLoT: Neural Pixel-to-3D Registration for UAV-based Ego and Target Geo-localization
 
 ## 1. Paper Task
