@@ -1414,3 +1414,53 @@ Ground → Drone Zero-Shot
 +
 OOD Dataset Transfer
 ```
+## Table 4 — Cross-Dataset Zero-Shot / OOD Evaluation
+
+### Experimental Setup
+
+GAGeo was evaluated directly on CVOGL/CVOGL-Seg using the released CMA-Loc-trained checkpoint.
+
+- No retraining
+- No fine-tuning
+- Point prompt
+- 973 test samples for each task
+- Detection and segmentation evaluated jointly
+
+Two cross-view tasks were reproduced:
+
+1. CVOGL_DroneAerial: Drone → Satellite
+2. CVOGL_SVI: Ground → Satellite
+
+### Paper vs Reproduction
+
+| Task | Metric | Paper | Ours | Difference |
+|---|---:|---:|---:|---:|
+| Drone → Satellite | mAcc / A@0.5:0.95 | 29.43 | 29.72 | +0.29 |
+| Drone → Satellite | Acc@0.5 | 50.27 | 50.15 | -0.12 |
+| Drone → Satellite | Acc@0.75 | 30.55 | 31.04 | +0.49 |
+| Drone → Satellite | mIoU | 46.79 | 45.75 | -1.04 |
+| Drone → Satellite | mDice | 53.38 | 52.22 | -1.16 |
+| Ground → Satellite | mAcc / A@0.5:0.95 | 19.37 | 19.21 | -0.16 |
+| Ground → Satellite | Acc@0.5 | 35.21 | 33.81 | -1.40 |
+| Ground → Satellite | Acc@0.75 | 19.28 | 19.42 | +0.14 |
+| Ground → Satellite | mIoU | 33.02 | 32.27 | -0.75 |
+| Ground → Satellite | mDice | 38.36 | 37.48 | -0.88 |
+
+### Reproduction Conclusion
+
+Table 4 was successfully reproduced using the released GAGeo checkpoint without any fine-tuning on CVOGL/CVOGL-Seg.
+
+The reproduced detection metrics are very close to the reported paper values. Segmentation metrics show a small gap of approximately 1 percentage point, but remain consistent with the paper-level trend.
+
+A clear performance gap is observed between the two tasks:
+
+- Drone → Satellite performs substantially better.
+- Ground → Satellite is considerably more difficult.
+
+This suggests that the larger viewpoint and appearance gap between street-level ground imagery and top-down satellite imagery remains an important challenge for cross-view object geo-localization.
+
+### Saved Results
+
+- `results/table4_cvogl_droneaerial.json`
+- `results/table4_cvogl_svi.json`
+
