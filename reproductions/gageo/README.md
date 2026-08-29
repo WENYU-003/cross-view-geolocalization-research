@@ -1,34 +1,63 @@
 # GAGeo Reproduction
 
-## 1. Paper
+## 1. Overview
+
+This directory records a paper-level reproduction and analysis of:
 
 **Beyond 2D Matching: A Unified Single-Stage Framework for Geometry-Aware Cross-View Object Geo-Localization**
 
-This directory records my reproduction of **GAGeo** on the **CMA-Loc** benchmark.
+Model: **GAGeo**
 
-### Current Status
+Main benchmark: **CMA-Loc**
 
-- ✅ Environment setup
-- ✅ CMA-Loc dataset setup
-- ✅ Released checkpoint successfully loaded
-- ✅ Seen + Point
-- ✅ Seen + BBox
-- ✅ Seen + Mask
-- ✅ Unseen + Point
-- ✅ Unseen + BBox
-- ✅ Unseen + Mask
-- ✅ Drone-to-Satellite evaluation
-- ✅ Ground-to-Satellite evaluation
-- ✅ Table 2 main detection results reproduced
-- ✅ Table 3 main segmentation results reproduced
+Additional zero-shot / OOD benchmark: **CVOGL / CVOGL-Seg**
 
-> Current milestone: the core CMA-Loc benchmark results in Tables 2 and 3 have been successfully reproduced using the officially released GAGeo checkpoint.
+The goal of this reproduction is not only to verify the reported benchmark results, but also to investigate:
 
-The complete paper reproduction is still in progress.
+- prompt sensitivity,
+- cross-view generalization,
+- Ground-to-Satellite vs Drone-to-Satellite difficulty,
+- out-of-distribution transfer,
+- failure modes,
+- reproducibility limitations of the public release,
+- possible directions for model improvement.
 
 ---
 
-## 2. Task Understanding
+## 2. Reproduction Status
+
+| Component | Status |
+|---|---|
+| Environment setup | ✅ |
+| CMA-Loc dataset setup | ✅ |
+| Released checkpoint loading | ✅ |
+| Seen + Point | ✅ |
+| Seen + BBox | ✅ |
+| Seen + Mask | ✅ |
+| Unseen + Point | ✅ |
+| Unseen + BBox | ✅ |
+| Unseen + Mask | ✅ |
+| Table 2 Detection | ✅ Reproduced |
+| Table 3 Segmentation | ✅ Reproduced |
+| Table 4 CVOGL Drone → Satellite | ✅ Reproduced |
+| Table 4 CVOGL Ground → Satellite | ✅ Reproduced |
+| CMA-Loc quantitative failure analysis | ✅ |
+| CMA-Loc qualitative failure analysis | ✅ |
+| Table 5 Ground → Drone | ⚠️ Public pairing unavailable |
+| Table 6 loss ablation | ⏸ Not reproduced |
+| Figure 4 structural/backbone ablation | ⏸ Not reproduced |
+
+### Current conclusion
+
+The released GAGeo checkpoint successfully reproduces the core CMA-Loc results reported in Tables 2 and 3.
+
+Cross-dataset zero-shot evaluation on CVOGL/CVOGL-Seg in Table 4 was also reproduced with results close to the paper.
+
+Failure analysis further shows that Ground → Satellite and small-target localization remain major weaknesses.
+
+---
+
+## 3. Task and Model Summary
 
 GAGeo studies **Cross-View Object Geo-Localization (CVOGL)**.
 
@@ -37,40 +66,21 @@ Given:
 ```text
 Query Image
 +
-Reference Image
-+
 Spatial Prompt
++
+Cross-View Reference Image
 ```
 
-the goal is to identify the target object specified in the query image and locate the corresponding object in the cross-view reference image.
+the model identifies the prompted target in the query image and localizes the corresponding object in the reference image.
 
-In the CMA-Loc main benchmark, the query view can be:
+The two main CMA-Loc view settings are:
 
 ```text
-Ground
-or
-Drone
+Ground → Satellite
+Drone  → Satellite
 ```
 
-while the reference view is:
-
-```text
-Satellite
-```
-
-Therefore the two main cross-view settings are:
-
-```text
-Ground → Satellite (G→S)
-
-Drone → Satellite (D→S)
-```
-
----
-
-## 3. Prompt Types
-
-GAGeo supports three prompt modalities:
+The model supports three prompt types:
 
 ```text
 Point
@@ -78,283 +88,65 @@ BBox
 Mask
 ```
 
-These are three different ways to tell the model:
+These are different ways to specify the target object in the query image.
 
-> Which object in the query image should be localized?
-
-### Point Prompt
-
-Provides a point located inside the target object.
-
-```text
-Query Image
-      ●
-   target
-```
-
-It contains relatively sparse spatial information.
-
-### BBox Prompt
-
-Provides the rectangular region of the target.
-
-```text
-┌───────────┐
-│  target   │
-└───────────┘
-```
-
-It contains richer spatial information than a point.
-
-### Mask Prompt
-
-Provides the pixel-level region belonging to the target object.
-
-```text
-000000000
-001111000
-001111100
-000111000
-000000000
-```
-
-It contains the most detailed target-region information.
-
-### Important
-
-Point, BBox, and Mask are:
-
-```text
-INPUT PROMPT TYPES
-```
-
-They are NOT three different GAGeo models.
+They are **not different models**.
 
 The same released GAGeo checkpoint supports all three prompt modalities.
 
----
-
-## 4. Output Tasks
-
-The input prompt type should not be confused with the model output task.
-
-Regardless of whether the input is:
-
-```text
-Point
-BBox
-Mask
-```
+### Outputs
 
 GAGeo jointly predicts:
 
 ```text
-Reference-object Bounding Box
-Reference-object Segmentation Mask
-Camera Position
-Camera Rotation
+Target Bounding Box
+Target Segmentation Mask
+Camera / Geometric Outputs
 ```
 
-The relationship is:
+Therefore a single Point/BBox/Mask evaluation contributes simultaneously to:
 
 ```text
-Point ─┐
-BBox  ─┼────→ GAGeo ─────┬→ BBox Prediction
-Mask  ─┘                  ├→ Mask Prediction
-                          ├→ Camera Position
-                          └→ Camera Rotation
+Detection metrics
+Segmentation metrics
+Geometric metrics
 ```
 
-Therefore:
-
-```text
-Prompt
-= input information
-
-Detection
-= bbox output task
-
-Segmentation
-= mask output task
-
-Camera Pose
-= geometric output task
-```
-
-This explains why a Point-prompt experiment can simultaneously generate both detection and segmentation results.
-
----
-
-## 5. Simplified GAGeo Pipeline
-
-The overall model can be understood as:
+### Simplified architecture
 
 ```text
 Query Image
     ↓
 DINOv2
     ↓
-Query Visual Tokens
-                         ┐
-Point / BBox / Mask      │
-    ↓                    │
-SAM2 Prompt Encoder      │
-    ↓                    │
-Prompt Representation    │
-                         ├────→ π3 Backbone
-Reference Image          │
-    ↓                    │
-DINOv2                   │
-    ↓                    │
-Reference Visual Tokens  ┘
-                              ↓
-                   Local Attention
-                              ↓
-                   Global Attention
-                              ↓
-                  Cross-view Interaction
-                              ↓
-                Geometry-aware Representation
-                              ↓
-             ┌────────────────┼────────────────┐
-             ↓                ↓                ↓
-         BBox Head        Mask Head       Camera Head
-             ↓                ↓                ↓
-            Box              Mask        Position/Rotation
+Query Features
+                       ┐
+Point / BBox / Mask    │
+    ↓                  │
+SAM2 Prompt Encoder    │
+    ↓                  │
+Prompt Features        │
+                       ├──→ π3 Geometry-Aware Backbone
+Reference Image        │
+    ↓                  │
+DINOv2                 │
+    ↓                  │
+Reference Features     ┘
+                            ↓
+                 Cross-View Interaction
+                            ↓
+               Shared Geometric Representation
+                            ↓
+              ┌─────────────┼─────────────┐
+              ↓             ↓             ↓
+          BBox Head      Mask Head    Geometry Heads
 ```
 
-GAGeo therefore uses a:
-
-```text
-single-stage
-+
-multi-task
-+
-geometry-aware
-```
-
-architecture.
+The reproduction focuses on whether this shared representation generalizes across prompt types, view combinations, seen/unseen environments, and external datasets.
 
 ---
 
-## 6. Main Model Components
-
-### DINOv2
-
-DINOv2 extracts visual patch-level representations from both:
-
-```text
-Query Image
-Reference Image
-```
-
-The output is no longer raw RGB pixels, but visual tokens/features that can be processed by the Transformer.
-
----
-
-### SAM2 Prompt Encoder
-
-The prompt encoder converts:
-
-```text
-Point
-BBox
-Mask
-```
-
-into representations that can be used by the network.
-
-Sparse prompts such as Point and BBox generate sparse prompt tokens.
-
-Mask prompts produce dense representations.
-
-The prompt therefore tells the model:
-
-> Which part of the query image corresponds to the target object?
-
----
-
-### π3 Backbone
-
-π3 is the main geometry-aware 3D foundation model backbone.
-
-It alternates:
-
-```text
-Local Attention
-and
-Global Attention
-```
-
-Local attention processes information within individual views.
-
-Global attention enables interaction between:
-
-```text
-Query
-and
-Reference
-```
-
-This is where cross-view geometric reasoning occurs.
-
----
-
-### Task Heads
-
-After cross-view interaction, the shared representation is used by several task-specific heads.
-
-```text
-BBox Head
-→ predicts target bounding box
-
-Mask Head
-→ predicts target segmentation mask
-
-Camera Head
-→ predicts camera pose
-
-Position Head
-→ predicts observer/camera position
-```
-
-These heads operate in parallel rather than sequentially.
-
----
-
-## 7. Why Segmentation Exists in a Geo-Localization Model
-
-GAGeo does not only want to know:
-
-```text
-Where is the target approximately?
-```
-
-It also wants to understand:
-
-```text
-What exact pixels belong to the target?
-```
-
-BBox prediction provides coarse spatial localization.
-
-Segmentation provides pixel-level object geometry.
-
-Therefore:
-
-```text
-BBox
-= coarse object localization
-
-Mask
-= fine-grained object geometry
-```
-
-Segmentation acts as an additional spatial/geometric learning objective rather than an unrelated classification task.
-
----
-
-## 8. Experimental Environment
+## 4. Experimental Environment
 
 Experiments were performed on NSCC.
 
@@ -366,7 +158,7 @@ GPU:
 NVIDIA A100-SXM4-40GB
 ```
 
-Interactive GPU allocation:
+Typical interactive GPU allocation:
 
 ```bash
 qsub -I -l select=1:ngpus=1 -l walltime=03:00:00
@@ -386,15 +178,12 @@ Released checkpoint:
 GAGeo_ckpt/gageo/mp_rank_00_model_states.pt
 ```
 
-Checkpoint loading output:
+Checkpoint verification:
 
 ```text
-Loaded state_dict keys: 2164
 Missing: 0
 Unexpected: 0
 ```
-
-This confirms that the released checkpoint matches the current model architecture.
 
 The model contains approximately:
 
@@ -402,29 +191,23 @@ The model contains approximately:
 937M parameters
 ```
 
-During evaluation:
-
-```text
-trainable = 0
-```
-
-because inference does not update model parameters.
+Evaluation is inference-only and does not update model parameters.
 
 ---
 
-## 9. CMA-Loc Dataset Setup
+## 5. Dataset Setup
 
-The CMA-Loc dataset is stored separately under NSCC scratch storage:
+### 5.1 CMA-Loc
+
+Dataset location:
 
 ```text
 /home/users/ntu/wenyu003/scratch/datasets/CMA-Loc/
 ```
 
-Large datasets and checkpoints are not stored inside the Git repository.
+Large datasets are stored under NSCC scratch rather than inside the Git repository.
 
-Two symbolic links are used.
-
-### Image Link
+Symbolic links used by GAGeo:
 
 ```text
 paper2_GAGeo/data/urban
@@ -432,68 +215,76 @@ paper2_GAGeo/data/urban
 /home/users/ntu/wenyu003/scratch/datasets/CMA-Loc/urban
 ```
 
-This contains the actual query/reference images.
-
-### Metadata Link
-
 ```text
 paper2_GAGeo/data/json
     ->
 /home/users/ntu/wenyu003/scratch/datasets/CMA-Loc/metadata
 ```
 
-This contains information such as:
+The metadata contains information including:
 
 ```text
 query/reference pairing
 city
 task type
-Point annotation
-BBox annotation
-Mask annotation
-camera pose
+Point / BBox / Mask annotations
+camera information
 dataset split
 ```
 
-Therefore:
+### 5.2 Seen / Unseen mapping
+
+An inconsistency was identified between the sample counts described in the paper and the released evaluation files.
+
+Released evaluator:
 
 ```text
-data/urban
-= image data
-
-data/json
-= annotation and pairing information
+test        = 4220 samples
+unseen_test = 4197 samples
 ```
+
+Numerically:
+
+```text
+test        → matches the paper Seen results
+unseen_test → matches the paper Unseen results
+```
+
+Therefore this reproduction uses:
+
+```text
+test        → Seen
+unseen_test → Unseen
+```
+
+The current evidence suggests that the two sample counts described in the paper may have been swapped. This should not be described as a confirmed typo without author confirmation.
 
 ---
 
-## 10. CMA-Loc Cities
+## 6. CMA-Loc Evaluation Protocol
 
-The dataset contains eight cities:
+The main CMA-Loc reproduction consists of six evaluation runs:
 
 ```text
-Berlin
-Chicago
-London
-Los Angeles
-Moscow
-New York
-Paris
-Tokyo
+Seen
+├── Point
+├── BBox
+└── Mask
+
+Unseen
+├── Point
+├── BBox
+└── Mask
 ```
 
-The main CMA-Loc benchmark contains both:
+Each evaluation with the default full view subset automatically contains:
 
 ```text
+Drone  → Satellite
 Ground → Satellite
-Drone → Satellite
 ```
 
-samples.
-
----
-
-## 11. Evaluation Command
+Therefore D→S and G→S do not require separate runs.
 
 Example:
 
@@ -510,158 +301,24 @@ python evaluate_cmaloc.py \
   --save_json outputs/test_point.json
 ```
 
-### Important Arguments
+Main detection metrics:
 
 ```text
---config
-    model/evaluation configuration
-
---checkpoint
-    released trained GAGeo weights
-
---image_root
-    CMA-Loc image root
-
---splits
-    test or unseen_test
-
---prompt_types
-    point / bbox / mask
-
---batch_size
-    number of samples processed in one GPU batch
-
---num_workers
-    CPU workers used for loading data
-
---skip_sam
-    skip additional SAM post-processing
-
---save_json
-    save the final evaluation metrics into a JSON file
+mAcc
+Acc@0.50
+Acc@0.75
 ```
 
----
-
-## 12. Meaning of Batch Size
-
-For example:
+Main segmentation metrics:
 
 ```text
-batch_size = 4
+mIoU
+mDice
+AAE
+ME
 ```
 
-does NOT mean that only four samples are evaluated.
-
-It means:
-
-```text
-Batch 1:
-samples 1–4
-
-Batch 2:
-samples 5–8
-
-Batch 3:
-samples 9–12
-
-...
-```
-
-until the entire split has been evaluated.
-
-For the 4220-sample split:
-
-```text
-4220 / 4
-=
-1055 batches
-```
-
-which matches the evaluation progress output.
-
----
-
-## 13. One Evaluation Automatically Contains D→S and G→S
-
-With the default:
-
-```text
-view_subset = all
-```
-
-one evaluation run automatically evaluates both cross-view setups.
-
-The terminal reports:
-
-```text
-task/drone
-```
-
-which means:
-
-```text
-Drone → Satellite
-```
-
-and:
-
-```text
-task/ground
-```
-
-which means:
-
-```text
-Ground → Satellite
-```
-
-Therefore we do NOT need to separately execute:
-
-```text
-Point + D→S
-Point + G→S
-```
-
-One Point evaluation already contains both.
-
----
-
-## 14. Six Main Benchmark Evaluations
-
-The main CMA-Loc reproduction consists of six runs:
-
-```text
-Seen
-├── Point
-├── BBox
-└── Mask
-
-Unseen
-├── Point
-├── BBox
-└── Mask
-```
-
-Each run automatically contains:
-
-```text
-D→S
-+
-G→S
-```
-
-and simultaneously outputs:
-
-```text
-Detection
-+
-Segmentation
-+
-Camera Pose
-```
-
-Raw results:
+Raw CMA-Loc reproduction results:
 
 ```text
 results/
@@ -675,112 +332,9 @@ results/
 
 ---
 
-## 15. Detection Metrics
+## 7. Table 2 — Detection Reproduction
 
-Paper Table 2 uses:
-
-```text
-mAcc ↑
-Acc@75 ↑
-Acc@50 ↑
-```
-
-### Acc@50
-
-A prediction is considered successful when:
-
-```text
-BBox IoU >= 0.50
-```
-
-Acc@50 is the percentage of samples satisfying this condition.
-
-Higher is better.
-
-### Acc@75
-
-A stricter criterion:
-
-```text
-BBox IoU >= 0.75
-```
-
-Higher is better.
-
-### mAcc
-
-Detection accuracy is calculated at:
-
-```text
-IoU = 0.50
-0.55
-0.60
-0.65
-0.70
-0.75
-0.80
-0.85
-0.90
-0.95
-```
-
-and then averaged.
-
-Therefore:
-
-```text
-Acc@50
-= relatively loose detection criterion
-
-Acc@75
-= stricter criterion
-
-mAcc
-= comprehensive multi-threshold detection quality
-```
-
----
-
-## 16. Segmentation Metrics
-
-Paper Table 3 uses:
-
-```text
-mIoU ↑
-mDice ↑
-AAE ↓
-ME ↓
-```
-
-Higher is better:
-
-```text
-mIoU
-mDice
-```
-
-Lower is better:
-
-```text
-AAE
-ME
-```
-
-The evaluator additionally reports:
-
-```text
-rotation_error_deg
-pos_err_px
-latency_ms
-```
-
-These will be useful for later geometric and efficiency analysis.
-
----
-
-# 17. Table 2 — Detection Reproduction
-
-## Seen
+### Seen
 
 | Prompt | View | Paper mAcc | Ours mAcc | Paper Acc@75 | Ours Acc@75 | Paper Acc@50 | Ours Acc@50 |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -791,7 +345,7 @@ These will be useful for later geometric and efficiency analysis.
 | BBox | G→S | 71.50 | 71.50 | 80.94 | 80.94 | 89.78 | 89.78 |
 | Mask | G→S | 71.41 | 71.41 | 81.04 | 81.04 | 89.39 | 89.39 |
 
-## Unseen
+### Unseen
 
 | Prompt | View | Paper mAcc | Ours mAcc | Paper Acc@75 | Ours Acc@75 | Paper Acc@50 | Ours Acc@50 |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -802,18 +356,15 @@ These will be useful for later geometric and efficiency analysis.
 | BBox | G→S | 66.70 | 66.70 | 74.72 | 74.72 | 82.48 | 82.48 |
 | Mask | G→S | 67.04 | 67.04 | 74.72 | 74.72 | 82.94 | 82.94 |
 
-### Result
+### Conclusion
 
-```text
-Table 2 GAGeo detection results
-successfully reproduced.
-```
+Table 2 was reproduced exactly with the released checkpoint and evaluator.
 
 ---
 
-# 18. Table 3 — Segmentation Reproduction
+## 8. Table 3 — Segmentation Reproduction
 
-## Seen
+### Seen
 
 | Prompt | View | Paper mIoU | Ours mIoU | Paper mDice | Ours mDice | Paper AAE | Ours AAE | Paper ME | Ours ME |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -824,7 +375,7 @@ successfully reproduced.
 | BBox | G→S | 77.36 | 77.36 | 83.99 | 83.99 | 1734.2 | 1734.2 | 19.57 | 19.57 |
 | Mask | G→S | 77.21 | 77.21 | 83.82 | 83.82 | 1770.9 | 1770.9 | 19.74 | 19.74 |
 
-## Unseen
+### Unseen
 
 | Prompt | View | Paper mIoU | Ours mIoU | Paper mDice | Ours mDice | Paper AAE | Ours AAE | Paper ME | Ours ME |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -835,28 +386,96 @@ successfully reproduced.
 | BBox | G→S | 73.82 | 73.82 | 79.76 | 79.76 | 2528.7 | 2528.7 | 29.40 | 29.40 |
 | Mask | G→S | 74.07 | 74.07 | 80.03 | 80.03 | 2533.4 | 2533.4 | 28.85 | 28.85 |
 
-The small AAE difference for Unseen D→S Mask:
+The only visible discrepancy is a rounding-level difference for Unseen D→S Mask AAE:
 
 ```text
-Paper:
-461.2
-
-Released evaluator:
-approximately 461.1
+Paper ≈ 461.2
+Released evaluator ≈ 461.1
 ```
 
-is only a rounding-level difference.
+### Conclusion
 
-### Result
+Table 3 was successfully reproduced.
+
+---
+
+## 9. Table 4 — Cross-Dataset Zero-Shot / OOD Evaluation
+
+### 9.1 Setup
+
+The released CMA-Loc-trained GAGeo checkpoint was directly evaluated on:
 
 ```text
-Table 3 GAGeo segmentation results
-successfully reproduced.
+CVOGL
++
+CVOGL-Seg
+```
+
+No retraining or dataset-specific fine-tuning was used.
+
+Two tasks were evaluated:
+
+```text
+CVOGL_DroneAerial
+→ Drone → Satellite
+
+CVOGL_SVI
+→ Ground → Satellite
+```
+
+Each test set contains:
+
+```text
+973 samples
+```
+
+Point Prompt was used.
+
+The original CVOGL images and CVOGL-Seg masks were stored separately. The segmentation mask directories were linked into the corresponding CVOGL task directories so that the evaluator could access query images, satellite images, pair annotations, and segmentation masks through a unified dataset interface.
+
+A CVOGL evaluation adapter was implemented to reuse the released GAGeo checkpoint without modifying model parameters.
+
+### 9.2 Paper vs Reproduction
+
+| Task | Metric | Paper | Ours | Difference |
+|---|---|---:|---:|---:|
+| Drone → Satellite | mAcc / A@0.5:0.95 | 29.43 | 29.72 | +0.29 |
+| Drone → Satellite | Acc@0.5 | 50.27 | 50.15 | -0.12 |
+| Drone → Satellite | Acc@0.75 | 30.55 | 31.04 | +0.49 |
+| Drone → Satellite | mIoU | 46.79 | 45.75 | -1.04 |
+| Drone → Satellite | mDice | 53.38 | 52.22 | -1.16 |
+| Ground → Satellite | mAcc / A@0.5:0.95 | 19.37 | 19.21 | -0.16 |
+| Ground → Satellite | Acc@0.5 | 35.21 | 33.81 | -1.40 |
+| Ground → Satellite | Acc@0.75 | 19.28 | 19.42 | +0.14 |
+| Ground → Satellite | mIoU | 33.02 | 32.27 | -0.75 |
+| Ground → Satellite | mDice | 38.36 | 37.48 | -0.88 |
+
+### Conclusion
+
+Table 4 was successfully reproduced at paper-level accuracy.
+
+Detection metrics are very close to the reported values. Segmentation metrics differ by approximately one percentage point while preserving the same overall trend.
+
+A strong view-dependent performance gap is observed:
+
+```text
+Drone → Satellite
+>
+Ground → Satellite
+```
+
+Saved results:
+
+```text
+results/table4_cvogl_droneaerial.json
+results/table4_cvogl_svi.json
 ```
 
 ---
 
-## 19. Observation — Richer Prompts Strongly Help D→S
+## 10. Main Experimental Findings
+
+### 10.1 Richer prompts strongly improve Drone → Satellite
 
 Seen D→S detection mAcc:
 
@@ -874,26 +493,11 @@ BBox  = 77.03
 Mask  = 79.16
 ```
 
-The trend is clear:
+Drone-to-Satellite localization benefits strongly from richer prompt geometry.
 
-```text
-Point
-  ↓
-BBox
-  ↓
-Mask
+### 10.2 Rich prompts provide little benefit for Seen Ground → Satellite
 
-More detailed target-region information
-→ Better Drone-to-Satellite performance
-```
-
-This indicates that D→S localization benefits substantially from richer geometric prompt information.
-
----
-
-## 20. Observation — Rich Prompts Barely Improve Seen G→S
-
-Seen G→S detection:
+Seen G→S detection mAcc:
 
 ```text
 Point = 71.50
@@ -901,566 +505,521 @@ BBox  = 71.50
 Mask  = 71.41
 ```
 
-Unlike D→S, increasing prompt precision produces almost no improvement.
+Increasing prompt precision produces almost no improvement.
 
-This suggests that the main G→S bottleneck may not simply be inaccurate target-region specification.
+This suggests that the main G→S bottleneck is not simply inaccurate target-region specification. The remaining difficulty is more likely related to cross-view representation and alignment.
 
-Potential explanations to investigate later include:
+### 10.3 Unseen Ground → Satellite generalization degrades
 
-```text
-Extreme viewpoint difference
-
-Ground/satellite appearance inconsistency
-
-Occlusion
-
-Limited visible façade information
-
-Cross-view geometric ambiguity
-
-Information loss in ground observations
-```
-
-This is an important direction for later failure analysis.
-
----
-
-## 21. Observation — Unseen G→S Is More Difficult
-
-Point prompt:
+Point Prompt:
 
 ```text
-Seen G→S mAcc
-= 71.50
-
-Unseen G→S mAcc
-= 65.30
+Seen G→S mAcc   = 71.50
+Unseen G→S mAcc = 65.30
 ```
 
 Segmentation:
 
 ```text
-Seen G→S mIoU
-= 77.37
-
-Unseen G→S mIoU
-= 72.68
+Seen G→S mIoU   = 77.37
+Unseen G→S mIoU = 72.68
 ```
 
-A noticeable degradation occurs when G→S localization is evaluated in unseen environments.
-
-D→S does not show the same level of degradation.
-
-Therefore:
-
-```text
-Ground → Satellite
-```
-
-appears to remain a more difficult generalization problem.
+Ground → Satellite therefore remains the more difficult generalization setting.
 
 ---
 
-## 22. Seen vs Unseen
+## 11. Failure Analysis — CMA-Loc Unseen + Point
 
-Seen and Unseen should not be confused with different prompt types or different models.
-
-### Seen
-
-The evaluation remains within environments/distributions represented during training.
+A dedicated per-sample evaluator was implemented for:
 
 ```text
-Training distribution
+CMA-Loc unseen_test
++
+Point Prompt
+```
+
+Instead of storing only average benchmark metrics, each sample records:
+
+```text
+task type
+target size
+target shape
+detection IoU
+segmentation IoU
+segmentation Dice
+query filename
+satellite filename
+```
+
+For analysis purposes, a **severe failure** is defined as:
+
+```text
+Detection IoU = 0
+AND
+Segmentation IoU = 0
+```
+
+This is an analysis criterion introduced for this reproduction and is not an official paper metric.
+
+Saved per-sample results:
+
+```text
+results/failure_cmaloc_unseen_point.csv
+```
+
+### 11.1 Overall Severe Failure Rate
+
+| Metric | Value |
+|---|---:|
+| Total samples | 4197 |
+| Severe failures | 196 |
+| Severe failure rate | 4.67% |
+
+### 11.2 Failure Rate by View
+
+| Task | Total | Severe Failures | Failure Rate |
+|---|---:|---:|---:|
+| Drone → Satellite | 2017 | 6 | 0.30% |
+| Ground → Satellite | 2180 | 190 | 8.72% |
+
+The severe-failure rate for Ground → Satellite is dramatically higher than for Drone → Satellite.
+
+### 11.3 Failure Rate by Target Size
+
+| Size | Total | Severe Failures | Failure Rate |
+|---|---:|---:|---:|
+| Large | 1399 | 24 | 1.72% |
+| Medium | 1399 | 54 | 3.86% |
+| Small | 1399 | 118 | 8.43% |
+
+The severe-failure rate increases clearly as target size decreases.
+
+### 11.4 Task × Size
+
+| Task | Size | Total | Severe Failures | Failure Rate |
+|---|---|---:|---:|---:|
+| Drone | Large | 672 | 1 | 0.15% |
+| Drone | Medium | 673 | 1 | 0.15% |
+| Drone | Small | 672 | 4 | 0.60% |
+| Ground | Large | 727 | 23 | 3.16% |
+| Ground | Medium | 726 | 53 | 7.30% |
+| Ground | Small | 727 | 114 | 15.68% |
+
+The most failure-prone subgroup is:
+
+```text
+Ground + Small
+= 15.68% severe failure rate
+```
+
+### 11.5 Shape Analysis
+
+| Shape | Total | Severe Failures | Failure Rate |
+|---|---:|---:|---:|
+| Regular | 3691 | 190 | 5.15% |
+| Irregular | 506 | 6 | 1.19% |
+
+Task × Shape:
+
+| Task | Shape | Total | Severe Failures | Failure Rate |
+|---|---|---:|---:|---:|
+| Drone | Irregular | 332 | 1 | 0.30% |
+| Drone | Regular | 1685 | 5 | 0.30% |
+| Ground | Irregular | 174 | 5 | 2.87% |
+| Ground | Regular | 2006 | 185 | 9.22% |
+
+This result should be interpreted cautiously because task and shape distributions are not independent.
+
+The apparent shape effect may partly reflect the much larger number of severe Ground failures.
+
+---
+
+## 12. Qualitative Failure Analysis
+
+Representative severe-failure samples were visualized with:
+
+```text
+Query + Point Prompt
+Satellite + GT / Pred BBox
+GT Mask
+Predicted Mask
+```
+
+Representative cases were selected from:
+
+```text
+Ground + Small
+Ground + Medium
+Ground + Large
+Drone + Large
+Drone + Small
+```
+
+The inspected examples reveal several recurring patterns.
+
+### F1. Similar-Instance Confusion
+
+The model frequently predicts a semantically similar neighboring building rather than the correct instance.
+
+This is particularly visible in repetitive residential and industrial environments.
+
+Interpretation:
+
+```text
+semantic-level recognition
         ↓
-Seen test samples
-```
+often approximately correct
 
-The exact test images are not training samples, but the environment/domain is familiar.
-
-### Unseen
-
-The model is evaluated on new environments/scenes not represented in training.
-
-```text
-Training distribution
+exact instance correspondence
         ↓
-New environment
-        ↓
-Unseen evaluation
+still unstable
 ```
 
-This measures scene-level generalization.
+### F2. Large Ground-to-Satellite Viewpoint Gap
 
----
-
-## 23. Seen / Unseen Split Inconsistency
-
-An important issue was identified during reproduction.
-
-The paper Sec. 5.1 states:
+Ground images mainly expose:
 
 ```text
-4,197 Seen pairs
-4,220 Unseen pairs
+building facades
+street-level appearance
+vehicles
+trees
+occlusion
 ```
 
-However, the released evaluator produces:
+Satellite images mainly expose:
 
 ```text
-test
-= 4220 samples
-
-unseen_test
-= 4197 samples
+rooftops
+building footprints
+top-down geometry
+neighborhood structure
 ```
 
-The numerical evidence is stronger than the sample-count description.
+The shared visual evidence between the two views can therefore be weak.
 
-The released:
+This is consistent with the large severe-failure gap:
 
 ```text
-test
+Ground → Satellite = 8.72%
+Drone  → Satellite = 0.30%
 ```
 
-results exactly match the **Seen** columns of Tables 2 and 3.
+### F3. Small-Target Sensitivity
 
-The released:
+Small satellite targets contain fewer discriminative pixels and are more easily confused with neighboring structures.
+
+Quantitatively:
 
 ```text
-unseen_test
+Large  = 1.72%
+Medium = 3.86%
+Small  = 8.43%
 ```
 
-results exactly match the **Unseen** columns.
-
-Therefore the mapping used in this reproduction is:
+The combination:
 
 ```text
-test
-→ Seen
-→ 4220 samples
-
-unseen_test
-→ Unseen
-→ 4197 samples
+Ground + Small
 ```
 
-The current evidence strongly suggests that the two sample counts in Sec. 5.1 may have been accidentally swapped.
-
-This should still be confirmed with the authors before describing it as a definitive typo.
-
----
-
-# 24. Current Reproduction Progress
-
-Completed:
+is especially difficult:
 
 ```text
-Environment Setup                 ✅
-CMA-Loc Dataset Setup             ✅
-Dataset Symbolic Links            ✅
-Released Checkpoint Loading       ✅
-
-Seen + Point                      ✅
-Seen + BBox                       ✅
-Seen + Mask                       ✅
-
-Unseen + Point                    ✅
-Unseen + BBox                     ✅
-Unseen + Mask                     ✅
-
-Drone → Satellite                 ✅
-Ground → Satellite                ✅
-
-Table 2 Detection                 ✅
-Table 3 Segmentation              ✅
+15.68%
 ```
 
-Current conclusion:
+### F4. Region-Level Mislocalization
 
-> The officially released GAGeo checkpoint successfully reproduces the core CMA-Loc benchmark results reported in Tables 2 and 3.
+Failure is not limited to small targets.
 
----
+Several Ground + Medium and Ground + Large examples show predictions jumping to an entirely different building region.
 
-# 25. What Has NOT Yet Been Reproduced
+Therefore small target size is an important factor, but not the only source of failure.
 
-The complete paper reproduction is not finished.
+Cross-view semantic and geometric misalignment remains a major problem.
 
-The following major experiments remain.
+### F5. Drone Failures Are Usually More Localized
 
----
+Drone failures are much rarer.
 
-## Table 4 — OOD / Zero-Shot Dataset Transfer
+When they occur, predictions often remain close to the correct region but select a neighboring building or nearby instance.
 
-Training dataset:
-
-```text
-CMA-Loc
-```
-
-Evaluation dataset:
+This suggests:
 
 ```text
-CVOGL / CVOGL-Seg
-```
-
-without dataset-specific fine-tuning.
-
-This evaluates:
-
-```text
-Out-of-Distribution (OOD)
-generalization
-```
-
-The distinction is:
-
-```text
-Unseen
-= same CMA-Loc benchmark
-  but unseen scenes/environments
-
-OOD
-= different dataset/domain
-```
-
----
-
-## Table 5 — Ground → Drone Zero-Shot
-
-Training cross-view relationships:
-
-```text
-Ground → Satellite
-
 Drone → Satellite
+coarse localization
+is relatively strong
+
+remaining difficulty
+→ fine-grained instance discrimination
 ```
 
-New evaluation relationship:
+Representative visualizations are stored under:
 
 ```text
-Ground → Drone
+failure_cases/
 ```
-
-The model was not directly trained on this matching relationship.
-
-Therefore this evaluates:
-
-```text
-Novel cross-view
-zero-shot generalization
-```
-
-This experiment is particularly important for testing the paper's satellite-anchor contrastive-learning strategy.
 
 ---
 
-## Table 6 — Loss Ablation
+## 13. Limitations Identified
 
-The paper evaluates:
+Based on benchmark reproduction and failure analysis, the following limitations are supported by the current evidence.
+
+### 13.1 Ground → Satellite alignment remains fragile
+
+Extreme viewpoint and appearance differences remain difficult even when the target prompt becomes more informative.
+
+### 13.2 Fine-grained instance discrimination is insufficient
+
+The model can identify semantically relevant regions but may confuse neighboring objects with similar appearance.
+
+### 13.3 Small targets remain highly vulnerable
+
+Low target resolution significantly increases localization ambiguity.
+
+### 13.4 Scale alone does not explain Ground failures
+
+Medium and large Ground targets can still suffer region-level mislocalization.
+
+### 13.5 Current single-stage prediction may benefit from explicit refinement
+
+Drone failure cases suggest that coarse localization can already be close to correct while final instance selection remains inaccurate.
+
+---
+
+## 14. Potential Research Directions
+
+The following ideas are motivated by the reproduced results and failure analysis. They are research hypotheses rather than validated contributions.
+
+### 14.1 Coarse-to-Fine Cross-View Localization
+
+```text
+Query / Reference
+      ↓
+Coarse candidate localization
+      ↓
+Local crop / zoom-in
+      ↓
+Fine-grained cross-view matching
+      ↓
+Refined BBox / Mask
+```
+
+Potential motivation:
+
+```text
+reduce nearby-instance confusion
+improve small-target localization
+refine already-correct coarse predictions
+```
+
+### 14.2 Fine-Grained Instance-Level Alignment
+
+Improve discrimination between visually similar neighboring buildings instead of relying primarily on semantic-level correspondence.
+
+### 14.3 Context-Aware Cross-View Matching
+
+Use contextual information including:
+
+```text
+road structure
+neighboring buildings
+local spatial layout
+surrounding geometry
+```
+
+to distinguish ambiguous instances.
+
+### 14.4 Geometry-Aware Refinement
+
+Use cross-view geometric consistency or local structural constraints to reduce region-level mismatches.
+
+### 14.5 Feature Reuse
+
+Reuse extracted representations across:
+
+```text
+coarse localization
+fine refinement
+detection
+segmentation
+```
+
+to reduce repeated computation and preserve useful cross-view correspondence information.
+
+---
+
+## 15. Table 5 — Ground → Drone Reproducibility Limitation
+
+The paper reports a Ground → Drone zero-shot experiment using:
+
+```text
+1245 Ground–Drone–Satellite triplets
+```
+
+However, the current public release does not provide an explicit:
+
+```text
+CMA-Triplet annotation
+Ground ↔ Drone pairing file
+Table 5 evaluation script
+```
+
+The standard CMA-Loc metadata contains Ground and Drone samples, but the exact 1245 pair relationships used in the paper cannot be recovered from the released `sat_filename` values.
+
+A direct shared-satellite matching attempt produced:
+
+```text
+Ground / Drone pairs sharing the same sat_filename = 0
+```
+
+Therefore Table 5 cannot currently be strictly reproduced under the paper protocol without the original triplet pairing.
+
+This is recorded as a **public-release reproducibility limitation** rather than replaced with a self-defined evaluation protocol.
+
+---
+
+## 16. Table 6 and Structural Ablations
+
+The paper also reports training-time ablations involving components such as:
 
 ```text
 Base
-
 + Deep Supervision
-
 + Contrastive Learning
-
 + Camera Pose Loss
 ```
 
-The purpose is to determine:
+and structural/backbone experiments including different task-token settings and geometry backbones.
+
+These experiments were not reproduced in the current stage because they may require:
 
 ```text
-Which training components
-actually contribute to performance?
+separately trained checkpoints
+or
+full retraining
 ```
 
-These experiments may require separate checkpoints or retraining.
+Their computational cost is substantially higher than released-checkpoint evaluation.
+
+They are therefore treated as optional extended reproduction rather than part of the completed core reproduction.
 
 ---
 
-## Figure 4 — Structural Ablation
+## 17. Saved Reproduction Artifacts
 
-The paper studies the number of learnable task tokens:
-
-```text
-1
-2
-4
-```
-
-and compares different 3D foundation backbones:
+The research repository stores the important outputs required for later verification and reporting.
 
 ```text
-VGGT
-WorldMirror
-π3
+reproductions/gageo/
+├── README.md
+│
+├── results/
+│   ├── test_point.json
+│   ├── test_bbox.json
+│   ├── test_mask.json
+│   ├── unseen_test_point.json
+│   ├── unseen_test_bbox.json
+│   ├── unseen_test_mask.json
+│   ├── table4_cvogl_droneaerial.json
+│   ├── table4_cvogl_svi.json
+│   └── failure_cmaloc_unseen_point.csv
+│
+└── failure_cases/
+    ├── representative Ground + Small failures
+    ├── representative Ground + Medium failures
+    ├── representative Ground + Large failures
+    └── representative Drone failures
 ```
 
-These experiments may require separately trained models and have higher computational cost.
+Large datasets, checkpoints, and full experimental environments are intentionally not stored in Git.
 
 ---
 
-# 26. Zero-Shot vs Unseen vs OOD
+## 18. Final Reproduction Summary
 
-These concepts all involve data that the model has not directly seen, but at different levels.
-
-### Unseen
+The current GAGeo reproduction achieved the following:
 
 ```text
-Same benchmark
-+
-Same task relationship
-+
-New environment
-```
-
-Example:
-
-```text
-CMA-Loc
-G→S
-new scene
-```
-
----
-
-### OOD
-
-```text
-Different dataset/domain
-```
-
-Example:
-
-```text
-Train:
-CMA-Loc
-
-Test:
-CVOGL-Seg
-```
-
-The image style, collection process, annotation distribution, and target distribution may all change.
-
----
-
-### Novel Cross-View Zero-Shot
-
-The view relationship itself changes.
-
-Training:
-
-```text
-G→S
-D→S
-```
-
-Testing:
-
-```text
-G→D
-```
-
-Therefore the model must generalize to a cross-view pairing that was not directly trained.
-
----
-
-# 27. Next Reproduction Plan
-
-The next phase should follow:
-
-```text
-1. Inspect available evaluation scripts
-
-2. Inspect released checkpoints
-
-3. Determine which Table 4 / Table 5 / Table 6
-   experiments can be reproduced directly
-
-4. Reproduce Ground→Drone zero-shot
-
-5. Reproduce OOD transfer
-
-6. Select high-value ablation experiments
-
-7. Perform failure analysis
-
-8. Identify limitations
-
-9. Develop model-level innovation
-```
-
-Priority:
-
-```text
-CMA-Loc Main Benchmark
-✅ Completed
-
-Ground→Drone Zero-shot
-→ High Priority
-
-OOD Dataset Transfer
-→ High Priority
-
-Loss Ablation
-→ Medium / depends on released checkpoints
-
-Backbone Ablation
-→ Medium / potentially expensive
-
-Failure Analysis
-→ Required
-
-Innovation Analysis
-→ Required
-```
-
----
-
-# 28. Research-Oriented Reproduction Logic
-
-The overall research workflow is:
-
-```text
-Paper Understanding
+CMA-Loc main benchmark
         ↓
-Environment / Dataset Preparation
-        ↓
-Official Baseline Reproduction
-        ↓
-Paper vs Ours Verification
-        ↓
-Generalization Evaluation
-        ↓
-Ablation Study
-        ↓
-Failure Analysis
-        ↓
-Limitation Identification
-        ↓
-Model Innovation
-```
-
-The purpose is not only to reproduce identical numbers.
-
-The important research questions are:
-
-```text
-When does GAGeo work?
-
-When does GAGeo fail?
-
-Why does rich prompt information
-strongly improve D→S
-but barely improve Seen G→S?
-
-Why does unseen G→S generalization degrade?
-
-How much does the π3 geometric prior contribute?
-
-How important is contrastive learning
-for G→D zero-shot transfer?
-
-Can prompt utilization be improved?
-
-Can cross-view token interaction be improved?
-
-Can the heavy 3D foundation backbone
-be made more efficient?
-
-Which front-end modification could provide
-a meaningful and experimentally testable
-research contribution?
-```
-
----
-
-# 29. Current Milestone
-
-```text
-GAGeo Main Benchmark Reproduction
-=================================
-
-CMA-Loc
-    ↓
-
 Seen / Unseen
-    ↓
-
+        ↓
 Point / BBox / Mask
-    ↓
-
-D→S / G→S
-    ↓
-
+        ↓
+Drone→Satellite / Ground→Satellite
+        ↓
 Detection + Segmentation
-    ↓
-
-Paper vs Ours
-    ↓
-
-Table 2 + Table 3
-Successfully Reproduced
+        ↓
+Tables 2 and 3 reproduced
 ```
 
-Next milestone:
+Cross-dataset evaluation was extended to:
 
 ```text
-Generalization Reproduction
-===========================
-
-Ground → Drone Zero-Shot
-+
-OOD Dataset Transfer
+CMA-Loc-trained GAGeo
+        ↓
+CVOGL / CVOGL-Seg
+        ↓
+Drone→Satellite
+Ground→Satellite
+        ↓
+Table 4 reproduced
 ```
-## Table 4 — Cross-Dataset Zero-Shot / OOD Evaluation
 
-### Experimental Setup
+Failure analysis further identified:
 
-GAGeo was evaluated directly on CVOGL/CVOGL-Seg using the released CMA-Loc-trained checkpoint.
+```text
+Ground → Satellite
+as the dominant severe-failure setting
 
-- No retraining
-- No fine-tuning
-- Point prompt
-- 973 test samples for each task
-- Detection and segmentation evaluated jointly
+Small targets
+as substantially more vulnerable
 
-Two cross-view tasks were reproduced:
+Ground + Small
+as the most difficult observed subgroup
 
-1. CVOGL_DroneAerial: Drone → Satellite
-2. CVOGL_SVI: Ground → Satellite
+Similar-instance confusion
+and region-level mislocalization
+as recurring qualitative failure modes
+```
 
-### Paper vs Reproduction
+The current reproduction therefore moves beyond benchmark verification and provides evidence for model-level limitations that may motivate future cross-view localization research.
 
-| Task | Metric | Paper | Ours | Difference |
-|---|---:|---:|---:|---:|
-| Drone → Satellite | mAcc / A@0.5:0.95 | 29.43 | 29.72 | +0.29 |
-| Drone → Satellite | Acc@0.5 | 50.27 | 50.15 | -0.12 |
-| Drone → Satellite | Acc@0.75 | 30.55 | 31.04 | +0.49 |
-| Drone → Satellite | mIoU | 46.79 | 45.75 | -1.04 |
-| Drone → Satellite | mDice | 53.38 | 52.22 | -1.16 |
-| Ground → Satellite | mAcc / A@0.5:0.95 | 19.37 | 19.21 | -0.16 |
-| Ground → Satellite | Acc@0.5 | 35.21 | 33.81 | -1.40 |
-| Ground → Satellite | Acc@0.75 | 19.28 | 19.42 | +0.14 |
-| Ground → Satellite | mIoU | 33.02 | 32.27 | -0.75 |
-| Ground → Satellite | mDice | 38.36 | 37.48 | -0.88 |
+---
 
-### Reproduction Conclusion
+## 19. Current Research Checkpoint
 
-Table 4 was successfully reproduced using the released GAGeo checkpoint without any fine-tuning on CVOGL/CVOGL-Seg.
+```text
+GAGeo Core Reproduction
+=======================
 
-The reproduced detection metrics are very close to the reported paper values. Segmentation metrics show a small gap of approximately 1 percentage point, but remain consistent with the paper-level trend.
+Environment / Dataset
+        ✅
 
-A clear performance gap is observed between the two tasks:
+Tables 2–3
+        ✅
 
-- Drone → Satellite performs substantially better.
-- Ground → Satellite is considerably more difficult.
+Table 4 OOD
+        ✅
 
-This suggests that the larger viewpoint and appearance gap between street-level ground imagery and top-down satellite imagery remains an important challenge for cross-view object geo-localization.
+Table 5
+        ⚠️ blocked by missing public pairing
 
-### Saved Results
+Failure Analysis
+        ✅
 
-- `results/table4_cvogl_droneaerial.json`
-- `results/table4_cvogl_svi.json`
+Initial Limitations
+        ✅
 
+Initial Research Directions
+        ✅
+```
+
+At this stage, the core GAGeo reproduction is considered complete.
+
+The next research step is to compare these findings with other reproduced cross-view localization systems and identify a focused, experimentally testable improvement direction.
