@@ -1,5 +1,7 @@
 # 10 — Failure Mechanism Diagnosis
 
+> **Status：Phase 3A COMPLETE；mechanism interpretation PROVISIONAL。** The statistics below are verified，but the claimed first-failure module and wrong-instance prevalence require the Phase 3B controlled audit in [`16_controlled_mechanism_isolation.md`](16_controlled_mechanism_isolation.md)。
+
 ## Scope and reproducibility
 
 This diagnosis uses only tracked Phase-2 artifacts：

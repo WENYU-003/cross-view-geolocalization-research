@@ -1,5 +1,7 @@
 # 15 — Implementation and Experiment Plan
 
+> **Status：PROVISIONAL diagnostic plan。** No method implementation is authorized by this document before the Phase 3B decision gate。
+
 ## Research purpose before code changes
 
 Test whether GAGeo catastrophic Ground failures retain the correct reference location among several latent feature hypotheses but lose it when collapsing to one object token。No architecture implementation starts until the frozen-feature diagnostic answers this。

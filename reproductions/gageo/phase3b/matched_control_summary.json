@@ -1,0 +1,109 @@
+{
+  "source_artifact": "failure_cmaloc_unseen_point.csv",
+  "sample_count": 4197,
+  "prompt_type": "point",
+  "split": "unseen_test",
+  "matched_fields": [
+    "size_category",
+    "shape_category",
+    "city"
+  ],
+  "fixed_fields": {
+    "city": "Losangeles",
+    "prompt_type": "point",
+    "split": "unseen_test"
+  },
+  "controlled_strata": [
+    {
+      "size": "small",
+      "shape": "regular",
+      "ground_severe": 114,
+      "ground_total": 701,
+      "drone_severe": 4,
+      "drone_total": 587,
+      "ground_rate_raw": 0.16262482168330955,
+      "drone_rate_raw": 0.0068143100511073255,
+      "risk_ratio": 23.865192582025678,
+      "rr_ci95_low": 8.85891899960078,
+      "rr_ci95_high": 64.29084824038236,
+      "zero_cell_corrected": false
+    },
+    {
+      "size": "small",
+      "shape": "irregular",
+      "ground_severe": 0,
+      "ground_total": 26,
+      "drone_severe": 0,
+      "drone_total": 85,
+      "ground_rate_raw": 0.0,
+      "drone_rate_raw": 0.0,
+      "risk_ratio": 3.185185185185185,
+      "rr_ci95_low": 0.0647273935242486,
+      "rr_ci95_high": 156.74050987581387,
+      "zero_cell_corrected": true
+    },
+    {
+      "size": "medium",
+      "shape": "regular",
+      "ground_severe": 48,
+      "ground_total": 675,
+      "drone_severe": 0,
+      "drone_total": 583,
+      "ground_rate_raw": 0.07111111111111111,
+      "drone_rate_raw": 0.0,
+      "risk_ratio": 83.79881656804734,
+      "rr_ci95_low": 5.178473095703966,
+      "rr_ci95_high": 1356.0448279688585,
+      "zero_cell_corrected": true
+    },
+    {
+      "size": "medium",
+      "shape": "irregular",
+      "ground_severe": 5,
+      "ground_total": 51,
+      "drone_severe": 1,
+      "drone_total": 90,
+      "ground_rate_raw": 0.09803921568627451,
+      "drone_rate_raw": 0.011111111111111112,
+      "risk_ratio": 8.823529411764705,
+      "rr_ci95_low": 1.059724830052774,
+      "rr_ci95_high": 73.46687467575862,
+      "zero_cell_corrected": false
+    },
+    {
+      "size": "large",
+      "shape": "regular",
+      "ground_severe": 23,
+      "ground_total": 630,
+      "drone_severe": 1,
+      "drone_total": 515,
+      "ground_rate_raw": 0.03650793650793651,
+      "drone_rate_raw": 0.001941747572815534,
+      "risk_ratio": 18.801587301587304,
+      "rr_ci95_low": 2.547657869227375,
+      "rr_ci95_high": 138.75477132508934,
+      "zero_cell_corrected": false
+    },
+    {
+      "size": "large",
+      "shape": "irregular",
+      "ground_severe": 0,
+      "ground_total": 97,
+      "drone_severe": 0,
+      "drone_total": 157,
+      "ground_rate_raw": 0.0,
+      "drone_rate_raw": 0.0,
+      "risk_ratio": 1.6122448979591835,
+      "rr_ci95_low": 0.03224917584575355,
+      "rr_ci95_high": 80.6015516001997,
+      "zero_cell_corrected": true
+    }
+  ],
+  "cohort_counts": {
+    "ground_severe": 190,
+    "ground_success": 190,
+    "drone_success": 190
+  },
+  "success_control_definition": "det_iou >= 0.5 and mask_iou >= 0.5",
+  "identifiability_limit": "After exact matching, the tracked CSV has no additional input, pose, patch-area, or annotation-quality variable that can distinguish Ground severe failures from Ground successes."
+}

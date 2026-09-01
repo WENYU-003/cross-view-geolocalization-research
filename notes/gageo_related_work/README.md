@@ -8,11 +8,13 @@
 
 **Phase 2（paper ↔ code ↔ reproduction alignment）：COMPLETE，带明确 provenance 限制。**
 
-**Phase 3（systematic failure analysis）：COMPLETE at observable-mechanism level。**
+**Phase 3A（statistical failure discovery）：COMPLETE。**
 
-**Phase 4（limitation）：COMPLETE。**
+**Phase 3B（controlled mechanism isolation）：PARTIAL；matched controls ready，raw-data/checkpoint isolation pending。**
 
-**Phase 5（research hypothesis / method design）：COMPLETE as a selected, falsifiable working method；implementation remains gated by the first feature diagnostic and a full novelty review。**
+**Phase 4（limitation）：PROVISIONAL，reopened by Phase 3B。**
+
+**Phase 5（research hypothesis / method design）：PROVISIONAL；PR-MHA is a leading hypothesis，not frozen。**
 
 当前可防守的主结论是：
 
@@ -41,6 +43,7 @@
 - [`13_idea_decision.md`](13_idea_decision.md)：主 idea 选择与 closest-method collision check。
 - [`14_proposed_method.md`](14_proposed_method.md)：PR-MHA 的数据流、模块和 falsifiable prediction。
 - [`15_implementation_and_experiment_plan.md`](15_implementation_and_experiment_plan.md)：代码插入点、训练与 minimum viable experiment。
+- [`16_controlled_mechanism_isolation.md`](16_controlled_mechanism_isolation.md)：size×shape matched controls、190-case taxonomy protocol、layer-wise frozen-checkpoint diagnostic and Phase 3B decision gate。
 
 ## Evidence labels
 

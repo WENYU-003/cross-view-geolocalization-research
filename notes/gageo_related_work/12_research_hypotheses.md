@@ -1,5 +1,7 @@
 # 12 — Research Hypotheses
 
+> **Status：PROVISIONAL candidate pool。** PR-MHA is the leading hypothesis，not a selected/frozen method，until Phase 3B tests top-K recoverability and prompt-return discrimination。
+
 ## Candidate interventions
 
 Scores use 1（poor）to 5（strong/easy）；novelty score means current differentiation potential，not a completed novelty claim。
@@ -13,7 +15,7 @@ Scores use 1（poor）to 5（strong/easy）；novelty score means current differ
 
 Training-cost score is higher when cheaper。
 
-## Selected research hypothesis
+## Leading research hypothesis（not frozen）
 
 > **If Ground catastrophic failures are caused by premature collapse from ambiguous cross-view evidence into one unanchored object token，then retaining top-K reference spatial hypotheses and verifying each candidate by whether it can attend back to the original query prompt/context will reduce coupled bbox/mask zero-overlap failures，especially for Ground + Small，without degrading the high-performing median population。**
 

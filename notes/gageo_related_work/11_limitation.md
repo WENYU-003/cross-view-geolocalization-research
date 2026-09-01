@@ -1,5 +1,7 @@
 # 11 — Limitation
 
+> **Status：PROVISIONAL，not frozen。** This limitation was inferred after Phase 3A and must be kept、revised or rejected only after Phase 3B locates the first failing representation stage and audits the 190 Ground severe cases。
+
 ## Defensible limitation statement
 
 > **GAGeo 在 Ground→Satellite、尤其 Small-target 条件下，由于当前 `query prompt → query patches → π³ global interaction → single object-task token` 路径缺少显式的多假设 reference anchoring 与错误候选验证机制，会在少数强视角歧义样本中提前压缩到一个语义合理但错误的 reference instance/region，导致 bbox 与 mask 一致性的 catastrophic zero-overlap failure。**

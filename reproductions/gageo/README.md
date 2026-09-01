@@ -67,6 +67,24 @@ python reproductions/gageo/verify_gageo_artifacts.py
 
 The saved result JSONs contain grouped aggregates rather than command/config/checkpoint metadata, and the severe-failure CSV generator is not tracked. Therefore numerical verification is stronger than execution-provenance completeness. Detailed boundaries and the research decision are recorded in [`notes/gageo_related_work/`](../../notes/gageo_related_work/).
 
+### Phase 3B controlled mechanism isolation
+
+Prepare exact size/shape/city-matched Ground-severe、Ground-success and Drone-success cohorts without inference：
+
+```bash
+python reproductions/gageo/prepare_phase3b_controls.py
+```
+
+The generated 570-row manifest uses all 190 Ground severe samples and strict success controls (`det_iou >= 0.5` and `mask_iou >= 0.5`)。The companion 190-row CSV is a blank taxonomy audit sheet；it is not a completed taxonomy。
+
+Run the frozen-checkpoint layer diagnostic in the GAGeo GPU environment：
+
+```bash
+python reproductions/gageo/run_phase3b_layerwise.py --print-plan
+```
+
+This diagnostic reads the actual π³ supervision stages from the loaded model and exports per-layer Hit@1/4/8、GT rank、GT-vs-wrong margin and prompt-return statistics。It does not train or alter the baseline。Phase 3B remains partial until those outputs and the 190-case audit are returned。
+
 ---
 
 ## 3. Task and Model Summary

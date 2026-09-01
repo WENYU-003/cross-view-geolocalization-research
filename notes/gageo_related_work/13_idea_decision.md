@@ -1,8 +1,10 @@
 # 13 — Idea Decision
 
+> **Status：PROVISIONAL，decision gate reopened。** Phase 3B may produce GO、MODIFY or NO-GO；do not implement PR-MHA from this note alone。
+
 ## Decision
 
-**Selected working idea：Prompt-Return Multi-Hypothesis Anchoring（PR-MHA）。**
+**Leading hypothesis：Prompt-Return Multi-Hypothesis Anchoring（PR-MHA）。It is not frozen。**
 
 The method is selected because it intervenes on the observed catastrophic-tail mechanism：the model should not compress an ambiguous reference field into one object representation before verifying alternatives。
 

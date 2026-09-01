@@ -1,4 +1,6 @@
-# 14 — Proposed Method: PR-MHA
+# 14 — Provisional Candidate Method: PR-MHA
+
+> **Status：PROVISIONAL，do not implement yet。** The architecture and insertion point must follow the Phase 3B layer-wise result rather than the Phase 3A interpretation。
 
 ## Goal
 
