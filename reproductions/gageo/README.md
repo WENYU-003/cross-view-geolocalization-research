@@ -85,6 +85,8 @@ python reproductions/gageo/run_phase3b_layerwise.py --print-plan
 
 This diagnostic reads the actual π³ supervision stages from the loaded model and exports per-layer Hit@1/4/8、GT rank、GT-vs-wrong margin and prompt-return statistics。It does not train or alter the baseline。Phase 3B remains partial until those outputs and the 190-case audit are returned。
 
+Sample loading reuses official `evaluate_cmaloc.py::EvalDataset` over the real per-sample `$JSON_ROOT/unseen_test.json`。The aggregate `outputs/unseen_test_point.json` is not an input。Each manifest `index` is checked against both official query and satellite filenames before `dataset[index]` is passed through the frozen model。
+
 ---
 
 ## 3. Task and Model Summary

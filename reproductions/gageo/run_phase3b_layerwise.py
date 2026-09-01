@@ -13,6 +13,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -22,9 +23,13 @@ PLAN = """Required inputs:
   --gageo-root       official GAGeo checkout
   --config           exact released evaluation config
   --checkpoint       released GAGeo checkpoint
-  --json             unseen_test.json
   --image-root       CMA-Loc image root containing <city>/mono and <city>/crop_sate
   --manifest         phase3b/matched_control_manifest.csv
+
+Dataset metadata is loaded exactly as official evaluate_cmaloc.py does: from
+$JSON_ROOT/unseen_test.json, defaulting to <gageo-root>/data/json/unseen_test.json.
+Use --dataset-json only to override that path with the real per-sample split
+file. Aggregate outputs such as outputs/unseen_test_point.json are rejected.
 
 Actual Pi3 checkpoints are read from model.backbone.supervision_layers. For the
 released large model they are expected to be pair-stages 4, 11, and 17. Output
@@ -39,7 +44,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gageo-root", type=Path)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--checkpoint", type=Path)
-    parser.add_argument("--json", type=Path)
+    parser.add_argument(
+        "--dataset-json",
+        type=Path,
+        default=None,
+        help="Optional override for the real per-sample unseen_test.json; never pass aggregate metrics JSON.",
+    )
     parser.add_argument("--image-root", type=Path)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--output-dir", type=Path, default=Path("phase3b_layerwise"))
@@ -50,7 +60,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def require_paths(args: argparse.Namespace) -> None:
-    required = ("gageo_root", "config", "checkpoint", "json", "image_root", "manifest")
+    required = ("gageo_root", "config", "checkpoint", "image_root", "manifest")
     missing = [name for name in required if getattr(args, name) is None]
     if missing:
         raise SystemExit("Missing arguments: " + ", ".join("--" + x.replace("_", "-") for x in missing))
@@ -58,11 +68,86 @@ def require_paths(args: argparse.Namespace) -> None:
         path = getattr(args, name)
         if not path.exists():
             raise FileNotFoundError(f"{name} does not exist: {path}")
+    if args.dataset_json is not None and not args.dataset_json.exists():
+        raise FileNotFoundError(f"dataset_json does not exist: {args.dataset_json}")
+
+
+def resolve_dataset_json(gageo_root: Path, explicit: Path | None) -> Path:
+    if explicit is not None:
+        return explicit.resolve()
+    json_root = Path(os.environ.get("JSON_ROOT", gageo_root / "data" / "json")).expanduser()
+    return (json_root / "unseen_test.json").resolve()
+
+
+def load_dataset_records(path: Path) -> list[dict[str, object]]:
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Official unseen_test dataset metadata not found: {path}. "
+            "Set JSON_ROOT or pass --dataset-json /path/to/unseen_test.json."
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        top_keys = list(payload)[:8] if isinstance(payload, dict) else []
+        raise ValueError(
+            f"Dataset JSON must be the official per-sample unseen_test list, got "
+            f"{type(payload).__name__} with top-level keys={top_keys}. "
+            "Aggregate metrics JSON (for example outputs/unseen_test_point.json) is not a dataset."
+        )
+    if len(payload) != 4197:
+        raise ValueError(f"Expected 4197 official unseen_test samples, found {len(payload)} in {path}")
+    return payload
+
+
+def validate_manifest_record(
+    manifest_row: dict[str, str],
+    dataset_records: list[dict[str, object]],
+) -> tuple[int, dict[str, object]]:
+    if manifest_row.get("split") != "unseen_test" or manifest_row.get("prompt_type") != "point":
+        raise ValueError(
+            f"Manifest row violates fixed protocol: split={manifest_row.get('split')!r}, "
+            f"prompt_type={manifest_row.get('prompt_type')!r}"
+        )
+    sample_index = int(manifest_row["index"])
+    if sample_index < 0 or sample_index >= len(dataset_records):
+        raise IndexError(
+            f"Manifest index={sample_index} is outside official dataset range [0, {len(dataset_records) - 1}]"
+        )
+    record = dataset_records[sample_index]
+    if not isinstance(record, dict):
+        raise TypeError(f"Official dataset record at index={sample_index} is not an object")
+    dataset_mono = str(record.get("mono_filename", ""))
+    dataset_sat = str(record.get("sat_filename") or record.get("sate_filename") or "")
+    manifest_mono = manifest_row["mono_filename"]
+    manifest_sat = manifest_row["sat_filename"]
+    if dataset_mono != manifest_mono or dataset_sat != manifest_sat:
+        raise RuntimeError(
+            "Manifest→official-dataset mapping error at "
+            f"index={sample_index}: mono manifest={manifest_mono!r}, dataset={dataset_mono!r}; "
+            f"sat manifest={manifest_sat!r}, dataset={dataset_sat!r}. Refuse to continue."
+        )
+    for field in ("task_type", "size_category", "shape_category", "city"):
+        dataset_value = record.get(field)
+        if dataset_value is not None and str(dataset_value).lower() != manifest_row[field].lower():
+            raise RuntimeError(
+                f"Manifest→official-dataset metadata mismatch at index={sample_index}, field={field}: "
+                f"manifest={manifest_row[field]!r}, dataset={dataset_value!r}. Refuse to continue."
+            )
+    return sample_index, record
 
 
 def load_manifest(path: Path, max_per_cohort: int) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        required = {
+            "control_id", "cohort", "index", "task_type", "size_category", "shape_category",
+            "city", "prompt_type", "split", "mono_filename", "sat_filename", "det_iou", "mask_iou",
+        }
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"Manifest missing required columns: {sorted(missing)}")
+        rows = list(reader)
+    if not rows:
+        raise ValueError(f"Manifest contains no samples: {path}")
     if max_per_cohort <= 0:
         return rows
     counts: dict[str, int] = defaultdict(int)
@@ -112,6 +197,13 @@ def main() -> int:
         print(PLAN)
         return 0
     require_paths(args)
+
+    # Resolve and validate the official split before loading the 937M model.
+    dataset_json = resolve_dataset_json(args.gageo_root.resolve(), args.dataset_json)
+    dataset_records = load_dataset_records(dataset_json)
+    manifest = load_manifest(args.manifest, args.max_per_cohort)
+    for manifest_row in manifest:
+        validate_manifest_record(manifest_row, dataset_records)
 
     import cv2
     import numpy as np
@@ -164,10 +256,9 @@ def main() -> int:
     encoder_handle = model.backbone.encoder.register_forward_hook(encoder_hook)
     backbone_handle = model.backbone.register_forward_hook(backbone_hook)
 
-    data_list = json.loads(args.json.read_text(encoding="utf-8"))
-    manifest = load_manifest(args.manifest, args.max_per_cohort)
     img_size = int(cfg["data"].get("img_size", 518))
     grid = img_size // int(cfg["model"].get("patch_size", 14))
+    dataset = EvalDataset(dataset_records, image_root=str(args.image_root), img_size=img_size)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     panel_dir = args.output_dir / "taxonomy_panels"
     panel_dir.mkdir(exist_ok=True)
@@ -238,12 +329,12 @@ def main() -> int:
     audit_runtime: list[dict[str, object]] = []
     with torch.no_grad():
         for manifest_row in manifest:
-            source_index = int(manifest_row["index"])
-            item = data_list[source_index]
-            if item["mono_filename"] != manifest_row["mono_filename"]:
-                raise RuntimeError(f"Index/filename drift at source index {source_index}")
-            dataset = EvalDataset([item], image_root=str(args.image_root), img_size=img_size)
-            batch = collate_eval([dataset[0]])
+            source_index, _dataset_record = validate_manifest_record(manifest_row, dataset_records)
+            batch = collate_eval([dataset[source_index]])
+            if int(batch["index"][0]) != source_index:
+                raise RuntimeError(
+                    f"Official EvalDataset returned index={batch['index'][0]} for requested index={source_index}"
+                )
             front = batch["front_view"].to(device)
             sat = batch["sat_view"].to(device)
             mono_point = batch["mono_point"].to(device)
@@ -364,6 +455,8 @@ def main() -> int:
         "checkpoint_sha256": sha256_file(checkpoint_file),
         "config": str(args.config.resolve()),
         "config_sha256": sha256_file(args.config.resolve()),
+        "dataset_json": str(dataset_json),
+        "dataset_json_sha256": sha256_file(dataset_json),
         "supervision_pair_stages": supervision_layers,
         "query_representation": "oracle GT mono-mask pooled feature; model input remains Point Prompt",
         "sample_count": len(manifest),

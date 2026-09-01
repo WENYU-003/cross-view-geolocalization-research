@@ -77,11 +77,14 @@ python /path/to/cross-view-geolocalization-research/reproductions/gageo/run_phas
   --gageo-root /path/to/GAGeo \
   --config /path/to/exact_eval_config.yaml \
   --checkpoint /path/to/mp_rank_00_model_states.pt \
-  --json /path/to/unseen_test.json \
   --image-root /path/to/CMA-Loc/urban \
   --manifest /path/to/cross-view-geolocalization-research/reproductions/gageo/phase3b/matched_control_manifest.csv \
   --output-dir /path/to/phase3b_layerwise
 ```
+
+The script follows official `evaluate_cmaloc.py` split resolution：it loads `$JSON_ROOT/unseen_test.json`，or `<gageo-root>/data/json/unseen_test.json` when `JSON_ROOT` is unset。Use `--dataset-json /path/to/unseen_test.json` only for an explicit override。Aggregate results such as `outputs/unseen_test_point.json` are rejected because they contain grouped metrics，not dataset samples。
+
+For every manifest row，the `index` column maps to `official_dataset[index]`。Both `mono_filename` and `sat_filename` must match the official dataset record before tensors are loaded；any mismatch aborts the run。
 
 Start with `--max-per-cohort 8` as a smoke test；then run the fixed 570-sample cohort，not the full benchmark。The script refuses checkpoints with missing or unexpected keys。
 
