@@ -55,6 +55,18 @@ Cross-dataset zero-shot evaluation on CVOGL/CVOGL-Seg in Table 4 was also reprod
 
 Failure analysis further shows that Ground → Satellite and small-target localization remain major weaknesses.
 
+### Phase 2 evidence audit
+
+The tracked JSON/CSV artifacts were re-audited without rerunning GPU inference. Tables 2–3 match the paper-displayed values except for the documented 0.1-pixel Unseen D→S Mask AAE rounding difference; Table 4 is approximately aligned. The 196/4,197 severe-failure count and all task/size/shape contingency counts are deterministically reproducible from the tracked CSV.
+
+Run the lightweight audit with:
+
+```bash
+python reproductions/gageo/verify_gageo_artifacts.py
+```
+
+The saved result JSONs contain grouped aggregates rather than command/config/checkpoint metadata, and the severe-failure CSV generator is not tracked. Therefore numerical verification is stronger than execution-provenance completeness. Detailed boundaries and the research decision are recorded in [`notes/gageo_related_work/`](../../notes/gageo_related_work/).
+
 ---
 
 ## 3. Task and Model Summary
