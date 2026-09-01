@@ -1,1 +1,16 @@
 .DS_Store
+
+# Local research evidence and generated raw outputs
+anyvisloc_evidence_inbox/
+evidence_inbox/
+Result/
+Scene*_RGB_Audit_*/
+*.tar.gz
+*.npz
+*.pkl
+*.npy
+
+# Large model/data artifacts are kept outside Git
+*.pth
+*.pt
+*.ckpt

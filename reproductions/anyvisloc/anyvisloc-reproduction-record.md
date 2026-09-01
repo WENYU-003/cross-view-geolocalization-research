@@ -687,13 +687,22 @@ RoMa vs SP_LG_GIM                         DONE
 Top1 vs Top5 behavior                     DONE
 Aerial vs Satellite                       DONE
 yp vs p prior sanity check                DONE
-Core failure analysis                     DONE / ongoing refinement
+Core failure analysis                     DONE
+Satellite correspondence diagnostics      DONE
+Solver correspondence provenance          DONE
+Satellite consistency method direction    NO-GO / FROZEN
 Mechanical all-scene enumeration          NOT necessary at this stage
 ```
 
-The next research phase should therefore be treated as **failure-driven
-method development**, rather than continuing to run the benchmark
-without a hypothesis.
+This research line is now checkpointed. The recovered evidence does not
+support turning cross-reference Agreement, match count, simple coverage,
+or solver-subset filtering into the next front-end proposed method. The
+active satellite correspondence-consistency direction is therefore
+**NO-GO / frozen** rather than moving directly into method development.
+
+UAV-AVL remains valuable as an external validation / secondary benchmark
+for a future front-end method selected from an independently supported
+research question.
 
 ------------------------------------------------------------------------
 
@@ -718,6 +727,8 @@ jointly determine localization performance.
 
 On Scene_16, RoMa with aerial references and useful pose priors can
 achieve very accurate localization, while satellite references and
-weaker orientation priors expose large front-end weaknesses. These
-observations provide concrete failure cases for the next stage of
-algorithm design.
+weaker orientation priors expose large system-level weaknesses. The
+later raw correspondence and solver-provenance audits show that these
+weaknesses cannot all be reduced to one clean front-end subset mechanism.
+The reproduction is complete, the current method hypothesis is frozen,
+and the benchmark is retained for future controlled validation.

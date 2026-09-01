@@ -75,3 +75,38 @@ DSM-assisted 2D-3D Correspondence Construction
 PnP / P3P
     ↓
 UAV Position Estimation
+```
+
+The completed UAV-AVL research line includes related-work synthesis, raw-evidence-backed Scene_16 failure attribution, satellite GT-reference diagnostics, spatial-support analysis, counterexample isolation, and solver-provenance recovery.
+
+Current decision:
+
+- reproduction completed;
+- aerial/satellite gap confirmed;
+- retrieval alone does not explain the gap;
+- Agreement, match count, and simple coverage are insufficient localization-utility indicators;
+- the current satellite correspondence-consistency proposed-method direction is **NO-GO / frozen**;
+- UAV-AVL remains available as a future external validation / secondary benchmark.
+
+Start here:
+
+- [UAV-AVL research checkpoint](notes/uavavl_related_work/12_uavavl_research_checkpoint.md)
+- [Related-work and failure-analysis index](notes/uavavl_related_work/README.md)
+- [AnyVisLoc reproduction and analysis scripts](reproductions/anyvisloc/README.md)
+
+### 2. GAGeo / CMA-Loc
+
+The next active research line returns to GAGeo/CMA-Loc from its existing reproduction results and per-sample failure evidence. UAV-AVL hypotheses must not be transferred into GAGeo without independent support.
+
+Existing record: [GAGeo reproduction](reproductions/gageo/README.md).
+
+---
+
+## Repository Map
+
+- `papers/`: individual paper-reading notes;
+- `notes/`: technical learning notes and cross-paper research synthesis;
+- `reproductions/`: baseline reproduction records, lightweight derived results, and analysis code;
+- `ideas/`: research directions that remain hypotheses until supported by evidence.
+
+Datasets, model weights, checkpoints, raw result bundles, caches, and large generated outputs are intentionally kept outside Git.
