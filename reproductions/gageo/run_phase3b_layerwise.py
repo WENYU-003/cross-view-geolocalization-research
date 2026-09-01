@@ -317,7 +317,16 @@ def main() -> int:
         return result
 
     def to_rgb(tensor: torch.Tensor) -> np.ndarray:
-        return (tensor.detach().cpu().permute(1, 2, 0).numpy().clip(0, 1) * 255).astype(np.uint8)
+        rgb = (tensor.detach().cpu().permute(1, 2, 0).numpy().clip(0, 1) * 255).astype(np.uint8)
+        # CHW→HWC creates a strided NumPy view; OpenCV drawing requires an
+        # independent, writable C-contiguous destination buffer.
+        rgb = np.ascontiguousarray(rgb).copy()
+        assert isinstance(rgb, np.ndarray)
+        assert rgb.dtype == np.uint8
+        assert rgb.shape == (img_size, img_size, 3)
+        assert rgb.flags.c_contiguous
+        assert rgb.flags.writeable
+        return rgb
 
     def overlay(image: np.ndarray, mask: np.ndarray, color: tuple[int, int, int]) -> np.ndarray:
         out = image.copy()
