@@ -24,7 +24,11 @@ PLAN = """Required inputs:
   --config           exact released evaluation config
   --checkpoint       released GAGeo checkpoint
   --image-root       CMA-Loc image root containing <city>/mono and <city>/crop_sate
-  --manifest         phase3b/matched_control_manifest.csv
+
+Sample selection (choose exactly one mode):
+  --manifest         a fixed Phase-3B-compatible sample manifest
+  --all-samples --view-subset ground_to_satellite
+                     all 2,180 Ground samples from official unseen_test metadata
 
 Dataset metadata is loaded exactly as official evaluate_cmaloc.py does: from
 $JSON_ROOT/unseen_test.json, defaulting to <gageo-root>/data/json/unseen_test.json.
@@ -52,6 +56,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--image-root", type=Path)
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument(
+        "--all-samples",
+        action="store_true",
+        help="Use every official unseen_test sample selected by --view-subset instead of a manifest.",
+    )
+    parser.add_argument(
+        "--view-subset",
+        choices=("ground_to_satellite",),
+        default=None,
+        help="View direction for --all-samples. The problem-scale audit requires ground_to_satellite.",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("phase3b_layerwise"))
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--max-per-cohort", type=int, default=0, help="0 means all manifest rows")
@@ -68,14 +83,24 @@ def parse_args() -> argparse.Namespace:
 
 
 def require_paths(args: argparse.Namespace) -> None:
-    required = ("gageo_root", "config", "checkpoint", "image_root", "manifest")
+    required = ("gageo_root", "config", "checkpoint", "image_root")
     missing = [name for name in required if getattr(args, name) is None]
     if missing:
         raise SystemExit("Missing arguments: " + ", ".join("--" + x.replace("_", "-") for x in missing))
+    if args.all_samples == (args.manifest is not None):
+        raise SystemExit("Choose exactly one sample source: --manifest, or --all-samples with --view-subset.")
+    if args.all_samples and args.view_subset is None:
+        raise SystemExit("--all-samples requires --view-subset ground_to_satellite.")
+    if not args.all_samples and args.view_subset is not None:
+        raise SystemExit("--view-subset is only valid with --all-samples.")
+    if args.all_samples and args.max_per_cohort != 0:
+        raise SystemExit("--max-per-cohort cannot be used with --all-samples; the audit must remain complete.")
     for name in required:
         path = getattr(args, name)
         if not path.exists():
             raise FileNotFoundError(f"{name} does not exist: {path}")
+    if args.manifest is not None and not args.manifest.exists():
+        raise FileNotFoundError(f"manifest does not exist: {args.manifest}")
     if args.dataset_json is not None and not args.dataset_json.exists():
         raise FileNotFoundError(f"dataset_json does not exist: {args.dataset_json}")
 
@@ -168,6 +193,55 @@ def load_manifest(path: Path, max_per_cohort: int) -> list[dict[str, str]]:
     return selected
 
 
+def task_type_from_record(record: dict[str, object]) -> str:
+    """Match official evaluate_cmaloc.py Ground/Drone view classification."""
+    return "drone" if "drone" in str(record.get("mono_filename", "")).lower() else "ground"
+
+
+def build_all_sample_rows(
+    dataset_records: list[dict[str, object]],
+    view_subset: str,
+) -> list[dict[str, str]]:
+    if view_subset != "ground_to_satellite":
+        raise ValueError(f"Unsupported all-sample view subset: {view_subset}")
+
+    rows: list[dict[str, str]] = []
+    for index, record in enumerate(dataset_records):
+        if not isinstance(record, dict):
+            raise TypeError(f"Official dataset record at index={index} is not an object")
+        if task_type_from_record(record) != "ground":
+            continue
+        mono_filename = str(record.get("mono_filename", ""))
+        sat_filename = str(record.get("sat_filename") or record.get("sate_filename") or "")
+        if not mono_filename or not sat_filename:
+            raise RuntimeError(
+                f"Official Ground record at index={index} lacks mono/satellite filename provenance"
+            )
+        rows.append({
+            "control_id": f"ground_all_{index:05d}",
+            "cohort": "ground_all",
+            "index": str(index),
+            "task_type": "ground",
+            "size_category": str(record.get("size_category", "unknown")),
+            "shape_category": str(record.get("shape_category", "unknown")),
+            "city": str(record.get("city", "")),
+            "prompt_type": "point",
+            "split": "unseen_test",
+            "mono_filename": mono_filename,
+            "sat_filename": sat_filename,
+            "det_iou": "",
+            "mask_iou": "",
+        })
+
+    expected_ground_samples = 2180
+    if len(rows) != expected_ground_samples:
+        raise RuntimeError(
+            f"Expected {expected_ground_samples} Ground unseen_test samples, selected {len(rows)}. "
+            "Refuse to run an incomplete problem-scale audit."
+        )
+    return rows
+
+
 def binary_auroc(positives: list[float], negatives: list[float]) -> float | None:
     if not positives or not negatives:
         return None
@@ -209,7 +283,12 @@ def main() -> int:
     # Resolve and validate the official split before loading the 937M model.
     dataset_json = resolve_dataset_json(args.gageo_root.resolve(), args.dataset_json)
     dataset_records = load_dataset_records(dataset_json)
-    manifest = load_manifest(args.manifest, args.max_per_cohort)
+    if args.all_samples:
+        manifest = build_all_sample_rows(dataset_records, args.view_subset)
+        selection_mode = "all_samples"
+    else:
+        manifest = load_manifest(args.manifest, args.max_per_cohort)
+        selection_mode = "manifest"
     for manifest_row in manifest:
         validate_manifest_record(manifest_row, dataset_records)
 
@@ -236,6 +315,11 @@ def main() -> int:
 
     device = torch.device(args.device)
     cfg = load_cfg_with_env(str(args.config.resolve()))
+    if args.all_samples and bool(cfg.get("model", {}).get("use_late_spatial_pr_mha", False)):
+        raise RuntimeError(
+            "Problem-scale baseline audit requires model.use_late_spatial_pr_mha=false. "
+            "Refuse to evaluate an enabled PR-MHA path."
+        )
     model = build_model_from_cfg(cfg, device)
     checkpoint_file = resolve_checkpoint(args.checkpoint.resolve())
     state = torch.load(str(checkpoint_file), map_location="cpu")
@@ -251,6 +335,10 @@ def main() -> int:
     supervision_layers = list(model.backbone.supervision_layers)
     if not supervision_layers:
         raise RuntimeError("No Pi3 supervision layers exposed by checkpoint config")
+    if args.all_samples and supervision_layers != [4, 11, 17]:
+        raise RuntimeError(
+            f"Problem-scale audit requires Pi3 pair-stage hooks [4, 11, 17], got {supervision_layers}"
+        )
     print(f"Using actual Pi3 pair-stage checkpoints: {supervision_layers}")
 
     captures: dict[str, object] = {}
@@ -382,7 +470,9 @@ def main() -> int:
             runtime_gt_mask = batch["gt_mask"][0].numpy().astype(np.uint8)
             runtime_mask_iou = SegMetrics.iou(runtime_pred_mask, runtime_gt_mask)
             cohort = manifest_row["cohort"]
-            if cohort == "ground_severe":
+            if selection_mode == "all_samples":
+                cohort_consistent = True
+            elif cohort == "ground_severe":
                 cohort_consistent = runtime_det_iou == 0.0 and runtime_mask_iou == 0.0
             else:
                 cohort_consistent = runtime_det_iou >= 0.5 and runtime_mask_iou >= 0.5
@@ -483,10 +573,11 @@ def main() -> int:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(records)
-    with (args.output_dir / "taxonomy_runtime_audit.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(audit_runtime[0]), lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(audit_runtime)
+    if audit_runtime:
+        with (args.output_dir / "taxonomy_runtime_audit.csv").open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(audit_runtime[0]), lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(audit_runtime)
     with (args.output_dir / "prediction_cohort_drift.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(prediction_cohort_audit[0]), lineterminator="\n")
         writer.writeheader()
@@ -502,6 +593,10 @@ def main() -> int:
         "supervision_pair_stages": supervision_layers,
         "query_representation": "oracle GT mono-mask pooled feature; model input remains Point Prompt",
         "sample_count": len(manifest),
+        "selection_mode": selection_mode,
+        "view_subset": args.view_subset if args.all_samples else None,
+        "prompt_type": "point",
+        "pr_mha_enabled": bool(cfg.get("model", {}).get("use_late_spatial_pr_mha", False)),
         "allow_cohort_drift": args.allow_cohort_drift,
         "prediction_cohort_drift": {
             cohort: {
