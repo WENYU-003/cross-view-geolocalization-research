@@ -56,6 +56,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--max-per-cohort", type=int, default=0, help="0 means all manifest rows")
     parser.add_argument("--temperature", type=float, default=0.07)
+    parser.add_argument(
+        "--allow-cohort-drift",
+        action="store_true",
+        help=(
+            "Keep original manifest cohorts while recording trained-model prediction drift. "
+            "Without this flag, any runtime cohort mismatch remains a provenance error."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -336,6 +344,7 @@ def main() -> int:
 
     records: list[dict[str, object]] = []
     audit_runtime: list[dict[str, object]] = []
+    prediction_cohort_audit: list[dict[str, object]] = []
     with torch.no_grad():
         for manifest_row in manifest:
             source_index, _dataset_record = validate_manifest_record(manifest_row, dataset_records)
@@ -377,11 +386,27 @@ def main() -> int:
                 cohort_consistent = runtime_det_iou == 0.0 and runtime_mask_iou == 0.0
             else:
                 cohort_consistent = runtime_det_iou >= 0.5 and runtime_mask_iou >= 0.5
-            if not cohort_consistent:
+            if runtime_det_iou == 0.0 and runtime_mask_iou == 0.0:
+                runtime_outcome = "severe"
+            elif runtime_det_iou >= 0.5 and runtime_mask_iou >= 0.5:
+                runtime_outcome = "success"
+            else:
+                runtime_outcome = "intermediate"
+            prediction_cohort_audit.append({
+                "control_id": manifest_row["control_id"],
+                "cohort": cohort,
+                "index": source_index,
+                "runtime_det_iou": runtime_det_iou,
+                "runtime_mask_iou": runtime_mask_iou,
+                "runtime_outcome": runtime_outcome,
+                "cohort_consistent": int(cohort_consistent),
+            })
+            if not cohort_consistent and not args.allow_cohort_drift:
                 raise RuntimeError(
                     f"Runtime output no longer matches cohort={cohort} at index={source_index}: "
                     f"det_iou={runtime_det_iou:.6f}, mask_iou={runtime_mask_iou:.6f}. "
-                    "Check checkpoint/config/data identity before interpreting features."
+                    "Check checkpoint/config/data identity, or pass --allow-cohort-drift "
+                    "for a trained-model evaluation that preserves manifest cohorts."
                 )
             layers: dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]] = {
                 "dinov2": (pooled(dino[:, 1], query_region), dino[:, 0], dino[:, 1]),
@@ -419,6 +444,8 @@ def main() -> int:
                     "saved_mask_iou": manifest_row["mask_iou"],
                     "runtime_det_iou": runtime_det_iou,
                     "runtime_mask_iou": runtime_mask_iou,
+                    "runtime_outcome": runtime_outcome,
+                    "cohort_consistent": int(cohort_consistent),
                     **metrics,
                 })
 
@@ -440,6 +467,8 @@ def main() -> int:
                     "panel_path": str(panel_path),
                     "runtime_det_iou": runtime_det_iou,
                     "runtime_mask_iou": runtime_mask_iou,
+                    "runtime_outcome": runtime_outcome,
+                    "cohort_consistent": int(cohort_consistent),
                     "audit_label": "",
                     "audit_confidence": "",
                     "annotation_valid": "",
@@ -458,6 +487,10 @@ def main() -> int:
         writer = csv.DictWriter(handle, fieldnames=list(audit_runtime[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(audit_runtime)
+    with (args.output_dir / "prediction_cohort_drift.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(prediction_cohort_audit[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(prediction_cohort_audit)
 
     summary: dict[str, object] = {
         "checkpoint": str(checkpoint_file),
@@ -469,6 +502,17 @@ def main() -> int:
         "supervision_pair_stages": supervision_layers,
         "query_representation": "oracle GT mono-mask pooled feature; model input remains Point Prompt",
         "sample_count": len(manifest),
+        "allow_cohort_drift": args.allow_cohort_drift,
+        "prediction_cohort_drift": {
+            cohort: {
+                "count": sum(row["cohort"] == cohort for row in prediction_cohort_audit),
+                "drift_count": sum(
+                    row["cohort"] == cohort and not bool(row["cohort_consistent"])
+                    for row in prediction_cohort_audit
+                ),
+            }
+            for cohort in sorted({str(row["cohort"]) for row in prediction_cohort_audit})
+        },
         "groups": {},
     }
     grouped: dict[tuple[str, str], list[dict[str, object]]] = defaultdict(list)
