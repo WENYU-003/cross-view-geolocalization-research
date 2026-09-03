@@ -1105,3 +1105,19 @@ After every choice is frozen on train/validation, the RCBR premise passes only i
 The confusion matrix and D8/non-D8 distributions are mandatory reports but do not replace any gate. If any criterion fails, `RCBR premise = NO-GO` and RCBR architecture implementation must not proceed. If all pass, `RCBR premise = GO`; this authorizes only the pre-registered RCBR MVP, not a full benchmark.
 
 Current decision: **NOT YET EVALUATED.** No probe result or RCBR premise conclusion exists at this checkpoint.
+
+## 20. Oracle / Controlled Intervention Test
+
+**Status: IMPLEMENTED, awaiting real NSCC smoke test.** RCBR premise validation was NO-GO under its frozen linear-probe criteria, while CDLR problem scale remains STRONG. Before implementing DTR, this experiment tests whether preventing an oracle-known destructive transition improves real task outputs rather than only rank diagnostics.
+
+The released model exposes legitimate stage-11 deep-supervision outputs through `intermediate_preds[11]`: bbox, mask, position, and rotation. The controlled state is therefore a complete stage-11 task prediction. Stage-11 projected features are never fed into final heads.
+
+The frozen interventions are:
+
+1. stage-11 early exit for every evaluated sample;
+2. coherent best-of-two oracle, selecting one complete stage-11 or final state by `0.5 * det_iou + 0.5 * mask_iou`, with no head-wise cherry-picking;
+3. D8-selective and rank-worsened-selective early exit, where all non-target samples reuse the baseline-final metric object exactly.
+
+The formal protocol is one frozen Point-Prompt pass over all 2,180 unseen-test Ground samples, with subgroup reports for D8, rank-worsened, matched Ground severe, and matched Ground success. Required outputs are per-sample detection IoU, mask IoU, position/rotation error, severe status, state-selection provenance, aggregate Acc50/Acc75/mIoU/severe recovery, and paired bootstrap confidence intervals.
+
+The test supports an actionable bottleneck only if D8 early exit yields a positive paired task improvement with 95% CI above zero for at least one of detection/mask without significant degradation of the other, recovers at least 20% of D8 baseline-severe cases, and the reconstructed D8-selective Ground result improves at least two headline metrics by one percentage point or more including detection or mask mIoU. If D8/rank-selective intervention is ineffective and only GT task-quality best-of-two selection produces a gain, hypothesis preservation and DTR are rejected as the main direction.
