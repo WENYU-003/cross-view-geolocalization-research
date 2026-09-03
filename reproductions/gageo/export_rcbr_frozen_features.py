@@ -56,6 +56,8 @@ Inputs:
   --metadata-root  official directory containing train_all.json, val_all.json,
                    and unseen_test.json
   --split           train, val, or unseen_test
+  --subset-size     stable-hash Ground subset size for train/val; 0 means all
+  --subset-seed     seed used only by stable-hash subset selection
 
 Predictor provenance:
   Point Prompt + pair-stage 4/11 only; no GT mask pooling and no stage 12--17
@@ -86,6 +88,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.07)
     parser.add_argument("--point-sigma-patches", type=float, default=1.0)
     parser.add_argument("--deterministic-crop-seed", type=int, default=42)
+    parser.add_argument(
+        "--subset-size",
+        type=int,
+        default=0,
+        help="Stable-hash Ground subset size for train/val; 0 selects the full split.",
+    )
+    parser.add_argument("--subset-seed", type=int, default=42)
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--shard-id", type=int, default=0)
     parser.add_argument("--max-samples", type=int, default=0, help="Smoke tests only; 0 exports the full shard")
@@ -106,6 +115,10 @@ def require_args(args: argparse.Namespace) -> None:
         raise ValueError("temperature and point-sigma-patches must be positive")
     if args.num_shards <= 0 or not 0 <= args.shard_id < args.num_shards:
         raise ValueError("Require num-shards > 0 and 0 <= shard-id < num-shards")
+    if args.subset_size < 0:
+        raise ValueError("subset-size must be non-negative")
+    if args.split == "unseen_test" and args.subset_size != 0:
+        raise ValueError("unseen_test is the frozen full evaluation and cannot use --subset-size")
 
 
 def sha256_file(path: Path) -> str:
@@ -132,6 +145,32 @@ def load_split(path: Path, split: str) -> tuple[list[dict[str, Any]], list[int]]
     return payload, indices
 
 
+def stable_ground_subset(
+    records: list[dict[str, Any]],
+    ground_source_indices: list[int],
+    split: str,
+    subset_size: int,
+    subset_seed: int,
+) -> list[tuple[int, int]]:
+    """Select by input provenance only, then restore official Ground order."""
+    indexed = list(enumerate(ground_source_indices))
+    if subset_size == 0:
+        return indexed
+    if subset_size > len(indexed):
+        raise ValueError(
+            f"subset-size={subset_size} exceeds {len(indexed)} Ground samples for split={split}"
+        )
+
+    def selection_key(pair: tuple[int, int]) -> tuple[str, int]:
+        _ground_position, source_index = pair
+        mono_filename = str(records[source_index].get("mono_filename", ""))
+        payload = f"{subset_seed}|{split}|{source_index}|{mono_filename}".encode("utf-8")
+        return hashlib.sha256(payload).hexdigest(), source_index
+
+    chosen = sorted(indexed, key=selection_key)[:subset_size]
+    return sorted(chosen, key=lambda pair: pair[0])
+
+
 def output_names(args: argparse.Namespace) -> tuple[str, str]:
     if args.num_shards == 1:
         return "rcbr_frozen_features.csv", "rcbr_export_summary.json"
@@ -150,10 +189,18 @@ def main() -> int:
     if not metadata_path.is_file():
         raise FileNotFoundError(metadata_path)
     all_records, ground_source_indices = load_split(metadata_path, args.split)
-    selected_positions = list(range(args.shard_id, len(ground_source_indices), args.num_shards))
+    subset_pairs = stable_ground_subset(
+        all_records,
+        ground_source_indices,
+        args.split,
+        args.subset_size,
+        args.subset_seed,
+    )
+    shard_pairs = subset_pairs[args.shard_id :: args.num_shards]
     if args.max_samples > 0:
-        selected_positions = selected_positions[: args.max_samples]
-    selected_source_indices = [ground_source_indices[position] for position in selected_positions]
+        shard_pairs = shard_pairs[: args.max_samples]
+    selected_positions = [ground_position for ground_position, _source_index in shard_pairs]
+    selected_source_indices = [source_index for _ground_position, source_index in shard_pairs]
     if not selected_source_indices:
         raise RuntimeError("Shard/sample selection is empty")
 
@@ -441,6 +488,7 @@ def main() -> int:
     if (
         args.split == "unseen_test"
         and args.num_shards == 1
+        and args.subset_size == 0
         and args.max_samples == 0
         and d8_count != 116
     ):
@@ -451,6 +499,9 @@ def main() -> int:
         "status": "frozen_feature_export_only_probe_not_run",
         "split": args.split,
         "official_ground_count": EXPECTED_COUNTS[args.split],
+        "stable_hash_subset_size": args.subset_size,
+        "stable_hash_subset_seed": args.subset_seed,
+        "selected_ground_count_before_sharding": len(subset_pairs),
         "exported_sample_count": len(rows),
         "d8_count": d8_count,
         "d8_prevalence": d8_count / len(rows),

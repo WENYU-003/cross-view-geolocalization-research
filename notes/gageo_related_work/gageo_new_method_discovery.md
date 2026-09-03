@@ -1079,7 +1079,11 @@ This is a fixed 15-dimensional input. Entropy and mass use a fixed temperature s
 
 ## 18. Linear Probe Protocol
 
-1. Run the released GAGeo baseline in evaluation mode and export the fixed 15-dimensional features plus separately namespaced labels for official train, validation, and unseen-test Ground samples with Point Prompt.
+The first low-cost premise MVP uses a stable-hash subset of `2,048` official-train Ground samples, `1,024` official-validation Ground samples, and all `2,180` unseen-test Ground samples. Subset membership is fixed with seed `42` from `seed | split | source_index | mono_filename`; it never uses D8, GT, or final information. The 15-dimensional feature definition remains frozen.
+
+If the extracted train subset contains fewer than `80` D8 positives or the validation subset fewer than `40`, extraction is expanded exactly once to train `4,096` / validation `2,048`, using the same hash ranking and seed. It must not jump directly to a larger subset. No probe is fitted before this prevalence gate is checked.
+
+1. Run the released GAGeo baseline in evaluation mode and export the fixed 15-dimensional features plus separately namespaced labels for the fixed train/validation Ground subsets and complete unseen-test Ground split with Point Prompt.
 2. Fit missing-value handling and standardization on official train Ground only. Any non-finite feature is a hard error rather than silently imputed from test statistics.
 3. Fit L2 logistic regression. Use a pre-registered small grid `C in {0.01, 0.1, 1, 10}` and compare unweighted versus train-derived balanced class weights on `val_select` only.
 4. Choose the model by validation AUPRC, with AUROC as the deterministic tie-breaker. No nonlinear probe is part of the premise gate.
