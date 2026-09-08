@@ -40,10 +40,28 @@ patch -p1 < /path/to/cross-view-geolocalization-research/reproductions/anyvisloc
 ```
 
 Run one control query without the flag and the same query with the flag, then
-use `verify_geo1_candidate_provenance_smoke.py` to require identical
-`best_index`, `pred_error`, and per-candidate inlier counts plus five complete,
-finite candidate records. This is provenance validation only; it is not a
-GEO-1 hypothesis test.
+use `verify_geo1_candidate_provenance_smoke.py` to validate sample identity,
+identical retrieval `IR_order` top-5, five correctly mapped candidate records,
+valid-to-PnP counts, inlier-index bounds, finite arrays, and consistency among
+the logged PKL, candidate `result.json`, and query-level `query_result.json`.
+The logging-disabled control directory must not contain candidate provenance.
+
+The AnyVisLoc full pipeline is nondeterministic across otherwise identical
+independent runs, so the verifier intentionally does **not** require equal
+`best_index`, `pred_error`, or candidate inlier counts across control and
+logged executions. On the NSCC L16_0001 smoke, all three runs retained the
+same retrieval top-5, `IR_order=[1, 6, 0, 5, 17]`, but produced:
+
+- control1: `best_index=2`, `pred_error=25.124`,
+  `inliers=[1046, 1056, 1243, 1123, 630]`;
+- logged: `best_index=3`, `pred_error=23.872`,
+  `inliers=[1018, 1016, 1119, 1144, 644]`;
+- control2: `best_index=2`, `pred_error=25.611`,
+  `inliers=[1058, 961, 1150, 1125, 629]`.
+
+This establishes run-to-run baseline nondeterminism for this smoke context;
+it does not attribute its cause. The smoke remains provenance validation only,
+not a GEO-1 hypothesis test.
 
 ## Inputs and outputs
 
