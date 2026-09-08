@@ -3,10 +3,17 @@
   "bootstrap_seed": 20260908,
   "evidence_boundary": "Retrieval Top-1 to selected identity is a strict joint downstream reranking increment, not a PnP-only causal increment.",
   "evidence_level": "result-file-confirmed offline analysis",
+  "future_candidate_pool_evidence": {
+    "confident_but_wrong_alpha_0_3": 0.27796610169491526,
+    "correct_top1_to_wrong_selected": "54/154",
+    "net_candidate_identity_increment_pp": 5.084745762711864,
+    "rescue": "69/100",
+    "wrong_candidate_pnp_failure": "0/850"
+  },
   "input_root": "/Users/oscarsmac/Documents/ChatGPT/CVPR/anyvisloc_evidence_inbox/geo1_scene16_candidate_provenance",
   "num_candidate_records": 1475,
   "num_queries": 295,
-  "preregistered_rejection_definition": "PnP-failure rejection among wrong candidate records",
+  "preregistered_rejection_definition": "UNRESOLVED: no unique operational definition was frozen",
   "preregistered_verdict": "INCONCLUSIVE",
   "primary_correctness_tau_m": 0.0,
   "primary_inlier_ratio_threshold": 0.3,
@@ -69,6 +76,12 @@
     "DSM-valid support descriptors"
   ],
   "recommended_decision": "STOP GEO-1 in its current formulation as a method-development candidate",
+  "rejection_criterion_status": "UNADJUDICATED for both <=25% GO and >=50% NO-GO clauses",
+  "reported_rejection_definitions": {
+    "pnp_failure_rejection": "wrong candidate has no successful PnP pose",
+    "productive_rejection": "wrong retrieval Top-1 changes to a correct selected candidate when a correct Top-5 candidate exists",
+    "selection_level_rejection": "wrong candidate is not selected"
+  },
   "research_question": "Does explicit geometry correct upstream candidate/geographic identity errors, or mainly fit within the selected visual hypotheses?",
   "unavailable_metrics": [
     "native RoMa per-match confidence/certainty",
@@ -77,15 +90,21 @@
     "full-run rerun variance",
     "PnP-only causal candidate-identity increment"
   ],
+  "verdict_basis": [
+    "native RoMa correspondence-only candidate ranking is unavailable",
+    "PnP-only independent causal increment is therefore not identifiable",
+    "downstream reranking both rescues wrong Top-1 cases and corrupts correct Top-1 cases",
+    "preregistered wrong-candidate rejection criterion is operationally ambiguous and unadjudicated"
+  ],
   "verdict_tests": {
     "go_confident_wrong_ge_20pct": true,
     "go_identity_increment_le_5pp": false,
-    "go_pnp_failure_rejection_le_25pct": true,
     "go_rescue_rate_le_10pct": false,
     "go_rescue_wilson_upper_lt_20pct": false,
+    "go_wrong_candidate_rejection_le_25pct": null,
     "nogo_identity_improvement_ge_10pp": false,
-    "nogo_pnp_failure_rejection_ge_50pct": false,
     "nogo_rescue_rate_ge_25pct": true,
-    "nogo_rescued_final_le3m_ge_80pct": false
+    "nogo_rescued_final_le3m_ge_80pct": false,
+    "nogo_wrong_candidate_rejection_ge_50pct": null
   }
 }

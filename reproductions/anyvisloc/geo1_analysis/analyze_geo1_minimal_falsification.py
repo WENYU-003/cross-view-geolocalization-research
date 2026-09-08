@@ -653,31 +653,27 @@ def make_transition_table(queries: list[dict[str, Any]], by_query: dict[str, lis
     ]
 
 
-def frozen_verdict(primary: dict[str, Any]) -> tuple[str, dict[str, bool]]:
+def frozen_verdict(primary: dict[str, Any]) -> tuple[str, dict[str, bool | None]]:
     rescue_quality = primary["rescued_final_le3m_rate"]
     tests = {
         "go_identity_increment_le_5pp": primary["candidate_identity_increment_pp"] <= 5.0,
         "go_rescue_rate_le_10pct": primary["geometry_rescue_rate"] is not None and primary["geometry_rescue_rate"] <= 0.10,
         "go_rescue_wilson_upper_lt_20pct": primary["rescue_wilson_upper"] is not None and primary["rescue_wilson_upper"] < 0.20,
-        "go_pnp_failure_rejection_le_25pct": primary["pnp_failure_rejection_rate"] is not None and primary["pnp_failure_rejection_rate"] <= 0.25,
+        "go_wrong_candidate_rejection_le_25pct": None,
         "go_confident_wrong_ge_20pct": primary["confident_wrong_rate"] >= 0.20,
         "nogo_identity_improvement_ge_10pp": primary["candidate_identity_increment_pp"] >= 10.0,
         "nogo_rescue_rate_ge_25pct": primary["geometry_rescue_rate"] is not None and primary["geometry_rescue_rate"] >= 0.25,
         "nogo_rescued_final_le3m_ge_80pct": rescue_quality is not None and rescue_quality >= 0.80,
-        "nogo_pnp_failure_rejection_ge_50pct": primary["pnp_failure_rejection_rate"] is not None and primary["pnp_failure_rejection_rate"] >= 0.50,
+        "nogo_wrong_candidate_rejection_ge_50pct": None,
     }
-    go = all(tests[key] for key in (
-        "go_identity_increment_le_5pp",
-        "go_rescue_rate_le_10pct",
-        "go_rescue_wilson_upper_lt_20pct",
-        "go_pnp_failure_rejection_le_25pct",
-        "go_confident_wrong_ge_20pct",
-    ))
+    # GO cannot be adjudicated because one required preregistered term has no
+    # frozen operational definition. Do not substitute any observed variant.
+    go = False
     no_go = (
         tests["nogo_identity_improvement_ge_10pp"]
         and tests["nogo_rescue_rate_ge_25pct"]
         and tests["nogo_rescued_final_le3m_ge_80pct"]
-    ) or tests["nogo_pnp_failure_rejection_ge_50pct"]
+    )
     if no_go:
         return "NO-GO", tests
     if go:
@@ -713,19 +709,27 @@ def make_report(summary: dict[str, Any], sensitivity: list[dict[str, Any]]) -> s
         "- Native RoMa confidence/ranking: UNAVAILABLE.",
         "- Per-candidate PnP reprojection error: UNAVAILABLE.",
         "",
-        "## Frozen verdict",
+        "## Preregistered verdict adjudication",
         "",
         f"**{summary['preregistered_verdict']}**",
         "",
-        "The preregistered rejection variable is PnP-failure rejection. Selection-level rejection is not substituted because choosing one of five candidates makes it mechanically high; productive rejection is reported as the query-level rescue event.",
+        "The preregistration did not uniquely define wrong-candidate rejection. Its <=25% GO clause and >=50% NO-GO clause are therefore UNADJUDICATED: PnP-failure, selection-level, and productive rejection are all retained, and none is selected post hoc for the verdict.",
         "",
-        f"GO support fails because identity increment is {primary['candidate_identity_increment_pp']:+.2f} pp (required <=+5 pp) and rescue is {format_pct(primary['geometry_rescue_rate'])} with Wilson upper {format_pct(primary['rescue_wilson_upper'])} (required <=10% and upper <20%). NO-GO fails because identity improvement is below +10 pp, rescued <=3 m rate is {format_pct(primary['rescued_final_le3m_rate'])} rather than >=80%, and PnP-failure rejection is below 50%.",
+        f"GO support is not established: identity increment is {primary['candidate_identity_increment_pp']:+.2f} pp (required <=+5 pp), rescue is {format_pct(primary['geometry_rescue_rate'])} with Wilson upper {format_pct(primary['rescue_wilson_upper'])} (required <=10% and upper <20%), and the rejection clause is unadjudicable. The independent NO-GO conjunction fails because identity improvement is below +10 pp and rescued <=3 m rate is {format_pct(primary['rescued_final_le3m_rate'])} rather than >=80%; the alternative rejection branch is unadjudicable.",
         "",
         "## Strongest counterevidence and strongest premise-consistent evidence",
         "",
         f"The strongest counterevidence to the premise is the {format_pct(primary['geometry_rescue_rate'])} productive rescue rate among queries with a wrong retrieval Top-1 and a correct Top-5 alternative. Geometry-mediated selection therefore does not merely preserve the retrieval Top-1 candidate identity in this run.",
         "",
         f"The strongest premise-consistent evidence is that PnP hard-rejected {format_pct(primary['pnp_failure_rejection_rate'])} of wrong candidates while {format_pct(primary['confident_wrong_rate'])} of all queries ended in a selected wrong candidate with inlier ratio >=0.3. In addition, only {format_pct(primary['rescued_final_le3m_rate'])} of identity rescues produced <=3 m final localization, so most footprint-identity rescues were not high-accuracy geographic rescues.",
+        "",
+        "## Future candidate-pool evidence",
+        "",
+        f"- Rescue: {primary['rescued_count']}/{primary['rescue_opportunity_count']}.",
+        f"- Correct retrieval Top-1 to wrong selected candidate: {primary['identity_deterioration_count']}/{primary['top1_correct_count']}.",
+        f"- Net candidate identity increment: {primary['candidate_identity_increment_pp']:+.2f} pp.",
+        f"- Wrong-candidate PnP failure: {primary['pnp_failure_rejection_count']}/{primary['wrong_candidate_count']}.",
+        f"- Confident-but-wrong at inlier ratio 0.3: {format_pct(primary['confident_wrong_rate'])}.",
         "",
         "## Sensitivity",
         "",
@@ -750,7 +754,7 @@ def make_report(summary: dict[str, Any], sensitivity: list[dict[str, Any]]) -> s
         "",
         "## Decision",
         "",
-        "The frozen verdict is INCONCLUSIVE. GEO-1 should STOP in its current formulation as a method-development candidate: it does not meet GO support, and the missing native correspondence-only ranking prevents the claimed independent PnP contribution from being identified by this evidence. This is not a claim that geometry is useless.",
+        "The final verdict is INCONCLUSIVE. Its primary basis is that native RoMa correspondence-only ranking cannot be recovered, so the PnP-only independent causal increment is not identifiable, while observed downstream reranking both rescues many wrong Top-1 cases and corrupts many correct Top-1 cases. The ambiguous preregistered rejection clause is not used to decide the verdict. GEO-1 should STOP in its current formulation as a method-development candidate. This is not a claim that geometry is useless.",
         "",
     ])
     return "\n".join(lines)
@@ -788,7 +792,13 @@ def main() -> None:
         "bootstrap_seed": args.bootstrap_seed,
         "primary_correctness_tau_m": PRIMARY_TAU_M,
         "primary_inlier_ratio_threshold": PRIMARY_INLIER_RATIO,
-        "preregistered_rejection_definition": "PnP-failure rejection among wrong candidate records",
+        "preregistered_rejection_definition": "UNRESOLVED: no unique operational definition was frozen",
+        "rejection_criterion_status": "UNADJUDICATED for both <=25% GO and >=50% NO-GO clauses",
+        "reported_rejection_definitions": {
+            "pnp_failure_rejection": "wrong candidate has no successful PnP pose",
+            "selection_level_rejection": "wrong candidate is not selected",
+            "productive_rejection": "wrong retrieval Top-1 changes to a correct selected candidate when a correct Top-5 candidate exists",
+        },
         "primary_metrics": primary,
         "preregistered_verdict": verdict,
         "verdict_tests": verdict_tests,
@@ -805,6 +815,19 @@ def main() -> None:
             "DSM-valid support descriptors",
         ],
         "evidence_boundary": "Retrieval Top-1 to selected identity is a strict joint downstream reranking increment, not a PnP-only causal increment.",
+        "verdict_basis": [
+            "native RoMa correspondence-only candidate ranking is unavailable",
+            "PnP-only independent causal increment is therefore not identifiable",
+            "downstream reranking both rescues wrong Top-1 cases and corrupts correct Top-1 cases",
+            "preregistered wrong-candidate rejection criterion is operationally ambiguous and unadjudicated",
+        ],
+        "future_candidate_pool_evidence": {
+            "rescue": "69/100",
+            "correct_top1_to_wrong_selected": "54/154",
+            "net_candidate_identity_increment_pp": 5.084745762711864,
+            "wrong_candidate_pnp_failure": "0/850",
+            "confident_but_wrong_alpha_0_3": 0.27796610169491526,
+        },
         "recommended_decision": "STOP GEO-1 in its current formulation as a method-development candidate",
     }
 

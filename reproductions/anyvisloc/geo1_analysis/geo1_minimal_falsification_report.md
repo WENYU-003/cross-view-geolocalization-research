@@ -19,19 +19,27 @@ Result-file-confirmed offline analysis of 295 Scene_16 satellite queries and 1,4
 - Native RoMa confidence/ranking: UNAVAILABLE.
 - Per-candidate PnP reprojection error: UNAVAILABLE.
 
-## Frozen verdict
+## Preregistered verdict adjudication
 
 **INCONCLUSIVE**
 
-The preregistered rejection variable is PnP-failure rejection. Selection-level rejection is not substituted because choosing one of five candidates makes it mechanically high; productive rejection is reported as the query-level rescue event.
+The preregistration did not uniquely define wrong-candidate rejection. Its <=25% GO clause and >=50% NO-GO clause are therefore UNADJUDICATED: PnP-failure, selection-level, and productive rejection are all retained, and none is selected post hoc for the verdict.
 
-GO support fails because identity increment is +5.08 pp (required <=+5 pp) and rescue is 69.00% with Wilson upper 77.22% (required <=10% and upper <20%). NO-GO fails because identity improvement is below +10 pp, rescued <=3 m rate is 20.29% rather than >=80%, and PnP-failure rejection is below 50%.
+GO support is not established: identity increment is +5.08 pp (required <=+5 pp), rescue is 69.00% with Wilson upper 77.22% (required <=10% and upper <20%), and the rejection clause is unadjudicable. The independent NO-GO conjunction fails because identity improvement is below +10 pp and rescued <=3 m rate is 20.29% rather than >=80%; the alternative rejection branch is unadjudicable.
 
 ## Strongest counterevidence and strongest premise-consistent evidence
 
 The strongest counterevidence to the premise is the 69.00% productive rescue rate among queries with a wrong retrieval Top-1 and a correct Top-5 alternative. Geometry-mediated selection therefore does not merely preserve the retrieval Top-1 candidate identity in this run.
 
 The strongest premise-consistent evidence is that PnP hard-rejected 0.00% of wrong candidates while 27.80% of all queries ended in a selected wrong candidate with inlier ratio >=0.3. In addition, only 20.29% of identity rescues produced <=3 m final localization, so most footprint-identity rescues were not high-accuracy geographic rescues.
+
+## Future candidate-pool evidence
+
+- Rescue: 69/100.
+- Correct retrieval Top-1 to wrong selected candidate: 54/154.
+- Net candidate identity increment: +5.08 pp.
+- Wrong-candidate PnP failure: 0/850.
+- Confident-but-wrong at inlier ratio 0.3: 27.80%.
 
 ## Sensitivity
 
@@ -58,4 +66,4 @@ The full provenance comes from one nondeterministic pipeline run. The earlier L1
 
 ## Decision
 
-The frozen verdict is INCONCLUSIVE. GEO-1 should STOP in its current formulation as a method-development candidate: it does not meet GO support, and the missing native correspondence-only ranking prevents the claimed independent PnP contribution from being identified by this evidence. This is not a claim that geometry is useless.
+The final verdict is INCONCLUSIVE. Its primary basis is that native RoMa correspondence-only ranking cannot be recovered, so the PnP-only independent causal increment is not identifiable, while observed downstream reranking both rescues many wrong Top-1 cases and corrupts many correct Top-1 cases. The ambiguous preregistered rejection clause is not used to decide the verdict. GEO-1 should STOP in its current formulation as a method-development candidate. This is not a claim that geometry is useless.

@@ -35,11 +35,12 @@ The primary confident-geometry threshold is PnP inlier ratio `>=0.3`;
 sensitivity thresholds are `{0.2,0.3,0.4}`. This is an uncalibrated geometry
 confidence proxy.
 
-The three wrong-candidate rejection definitions are deliberately separated:
+The preregistration used the term `wrong-candidate rejection` without freezing
+one unique operational definition. The three plausible definitions are
+therefore deliberately separated:
 
 1. **PnP-failure rejection:** a wrong candidate returns no successful PnP
-   pose. This is the preregistered rejection variable because it is the only
-   direct hard rejection performed by the geometry stage.
+   pose.
 2. **Selection-level rejection:** a wrong candidate is not selected. This is
    descriptive and mechanically high when only one of five candidates wins.
 3. **Productive rejection:** retrieval Top-1 is wrong, a correct candidate is
@@ -48,24 +49,40 @@ The three wrong-candidate rejection definitions are deliberately separated:
 
 ## Frozen decision rule
 
-Primary verdict uses `tau=0`, inlier-ratio threshold `0.3`, and
-PnP-failure rejection. Definitions and thresholds must not be selected after
-viewing results.
+Primary analysis uses `tau=0` and inlier-ratio threshold `0.3`. Definitions
+and thresholds must not be selected after viewing results.
 
 **GO support** requires all of:
 
 - candidate identity increment `<= +5 pp`;
 - geometry rescue `<=10%` and Wilson 95% CI upper `<20%`;
-- PnP-failure wrong-candidate rejection `<=25%`;
+- wrong-candidate rejection `<=25%` (operational definition unresolved);
 - confident-but-wrong `>=20%`.
 
 **NO-GO** requires either:
 
 - candidate identity improvement `>=+10 pp`, rescue `>=25%`, and at least
   `80%` of rescued cases have final localization error `<=3 m`; or
-- PnP-failure wrong-candidate rejection `>=50%`.
+- wrong-candidate rejection `>=50%` (operational definition unresolved).
 
-Every other outcome is `INCONCLUSIVE`.
+Every other outcome is `INCONCLUSIVE`. Because the preregistration did not
+choose among PnP-failure, selection-level, and productive rejection, the
+`wrong-candidate rejection <=25%` GO clause and the `>=50%` NO-GO clause are
+both marked **UNADJUDICATED**. None of the observed definitions may be chosen
+post hoc to trigger or avoid a verdict. The independent NO-GO conjunction
+(identity improvement, rescue rate, and rescued localization quality) remains
+adjudicable.
+
+## Candidate-pool evidence retained from this audit
+
+These observations are retained as evidence for future candidate-pool review,
+not as a reformulated GEO-1 method claim:
+
+- rescue: `69/100`;
+- correct retrieval Top-1 to wrong selected candidate: `54/154`;
+- net candidate identity increment: `+5.08 pp`;
+- wrong-candidate PnP failure: `0/850`;
+- confident-but-wrong at inlier-ratio threshold `0.3`: `27.80%`.
 
 ## Reproduction command
 
