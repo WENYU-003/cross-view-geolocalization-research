@@ -1,0 +1,342 @@
+--- a/run_avl.py
++++ b/run_avl.py
+@@ -177,6 +177,14 @@
+         help="Random seed for sampled PnP inlier match visualization.",
+     )
+     parser.add_argument(
++        "--save_candidate_provenance",
++        action="store_true",
++        help=(
++            "Save logging-only pre-PnP and PnP provenance for every processed "
++            "Top-N candidate. Disabled by default."
++        ),
++    )
++    parser.add_argument(
+         "--ref_feature_cache_dir",
+         default=None,
+         type=str,
+@@ -883,6 +891,7 @@
+                         dsm_origin_local,
+                         dist=dist,
+                         truePos=truePos,
++                        ir_order=IR_order,
+                     )
+
+                     (
+@@ -894,6 +903,33 @@
+                     ) = pos2error_anyvisloc(truePos, XYZ_list, inliers_list)
+
+                     total_time = time.time() - t0
++
++                    if opt.save_candidate_provenance:
++                        selected_candidate = None
++                        if best_index is not None and 0 <= int(best_index) < len(XYZ_list):
++                            selected_candidate = {
++                                "candidate_slot": int(best_index),
++                                "retrieval_rank": int(best_index) + 1,
++                                "ir_order_gallery_block_index": int(np.asarray(IR_order).reshape(-1)[best_index]),
++                                "row_start": int(row_starts[best_index]),
++                                "col_start": int(col_starts[best_index]),
++                                "inlier_count": int(inliers_list[best_index]),
++                                "location_error_m": location_error_list[best_index],
++                            }
++                        save_json(
++                            save_path / "candidate_provenance" / "query_result.json",
++                            {
++                                "scene_name": scene_name,
++                                "sample_id": sample_id,
++                                "num_processed_candidates": int(len(XYZ_list)),
++                                "best_index": best_index,
++                                "selected_candidate": selected_candidate,
++                                "pnp_success": bool(pnp_success),
++                                "final_pred_error_m": pred_error,
++                                "inlier_counts": [int(value) for value in inliers_list],
++                                "location_error_list": location_error_list,
++                            },
++                        )
+
+                     best_inliers = int(max(inliers_list) if len(inliers_list) else 0)
+                     if pnp_success:
+--- a/avl_utils.py
++++ b/avl_utils.py
+@@ -1486,6 +1486,7 @@
+     dsm_origin_local,
+     dist=None,
+     truePos=None,
++    ir_order=None,
+ ):
+     """Pixel-level matching + PnP for AnyVisLoc local coordinates."""
+     ensure_dir(save_path)
+@@ -1501,6 +1502,12 @@
+         uav_img = uav_img0
+
+     XYZ_list, inliers_list, time_list = [], [], []
++    save_candidate_provenance = bool(getattr(opt, "save_candidate_provenance", False))
++    ir_order_array = (
++        np.asarray(ir_order).reshape(-1)
++        if save_candidate_provenance and ir_order is not None
++        else np.zeros((0,), dtype=np.int64)
++    )
+     if not isinstance(row_start_list, list):
+         row_start_list = [row_start_list]
+         col_start_list = [col_start_list]
+@@ -1516,10 +1523,64 @@
+         ransac_name = f"/top{index + 1}_ransac.jpg"
+         row0 = int(row_start_list[index])
+         col0 = int(col_start_list[index])
++
++        provenance_uav_pts_match = None
++        provenance_ref_pts_match = None
++        provenance_uav_pts_original = None
++        provenance_ref_pts_patch = None
++        provenance_local_x = None
++        provenance_local_y = None
++        provenance_dsm_z = None
++        provenance_valid = None
++        provenance_pnp_input_2d = None
++        provenance_pnp_input_3d = None
++        provenance_pnp_object_points = None
++        inliers_all = np.zeros((0, 1), dtype=np.int32)
++        candidate_error_m = None
+
+         fineRef = ref_image[row0:row0 + int(patch_h), col0:col0 + int(patch_w)]
+         if fineRef.size == 0:
+-            XYZ_list.append({"X": None, "Y": None, "Z": None, "L": None, "B": None, "H": None})
++            XYZ = {"X": None, "Y": None, "Z": None, "L": None, "B": None, "H": None}
++            if save_candidate_provenance:
++                provenance_uav_pts_match = np.zeros((0, 2), dtype=np.float32)
++                provenance_ref_pts_match = np.zeros((0, 2), dtype=np.float32)
++                provenance_uav_pts_original = np.zeros((0, 2), dtype=np.float32)
++                provenance_ref_pts_patch = np.zeros((0, 2), dtype=np.float32)
++                provenance_local_x = np.zeros((0,), dtype=np.float32)
++                provenance_local_y = np.zeros((0,), dtype=np.float32)
++                provenance_dsm_z = np.zeros((0,), dtype=np.float32)
++                provenance_valid = np.zeros((0,), dtype=bool)
++                provenance_pnp_input_2d = np.zeros((0, 2), dtype=np.float32)
++                provenance_pnp_input_3d = np.zeros((0, 3), dtype=np.float32)
++                provenance_pnp_object_points = np.zeros((0, 3), dtype=np.float32)
++                save_candidate_provenance_anyvisloc(
++                    save_path=save_path,
++                    scene_name=getattr(opt, "_current_scene_name", ""),
++                    sample_id=getattr(opt, "_current_sample_id", ""),
++                    candidate_slot=index,
++                    retrieval_rank=index + 1,
++                    ir_order_gallery_block_index=(int(ir_order_array[index]) if index < len(ir_order_array) else None),
++                    row_start=row0,
++                    col_start=col0,
++                    patch_h=patch_h,
++                    patch_w=patch_w,
++                    uav_pts_match=provenance_uav_pts_match,
++                    ref_pts_match=provenance_ref_pts_match,
++                    uav_pts_original=provenance_uav_pts_original,
++                    ref_pts_patch=provenance_ref_pts_patch,
++                    local_x=provenance_local_x,
++                    local_y=provenance_local_y,
++                    dsm_z=provenance_dsm_z,
++                    valid=provenance_valid,
++                    pnp_input_2d=provenance_pnp_input_2d,
++                    pnp_input_3d=provenance_pnp_input_3d,
++                    pnp_object_points=provenance_pnp_object_points,
++                    inlier_indices=inliers_all,
++                    predicted_pose=XYZ,
++                    inlier_count=0,
++                    location_error_m=None,
++                )
++            XYZ_list.append(XYZ)
+             inliers_list.append(0)
+             time_list.append([0.0, 0.0])
+             continue
+@@ -1540,6 +1601,12 @@
+         match_time_end = time.time()
+         single_match_time = match_time_end - match_time_start
+
++        if save_candidate_provenance:
++            provenance_uav_pts_match = np.asarray(Sen_pts, dtype=np.float32).reshape(-1, 2)
++            provenance_ref_pts_match = np.asarray(Ref_pts, dtype=np.float32).reshape(-1, 2)
++            provenance_uav_pts_original = provenance_uav_pts_match / resize_ratio
++            provenance_ref_pts_patch = provenance_ref_pts_match / max(float(fine_scale), 1e-12)
++
+         if len(Ref_pts) >= 5:
+             Sen_pts_arr = np.asarray(Sen_pts, dtype=np.float32)
+             Ref_pts_arr = np.asarray(Ref_pts, dtype=np.float32)
+@@ -1568,11 +1635,23 @@
+                 & np.isfinite(DSM)
+             )
+
++            if save_candidate_provenance:
++                provenance_local_x = np.asarray(local_x, dtype=np.float32)
++                provenance_local_y = np.asarray(local_y, dtype=np.float32)
++                provenance_dsm_z = np.asarray(DSM, dtype=np.float32)
++                provenance_valid = np.asarray(valid, dtype=bool)
++
+             # These are the actual correspondences sent to PnP.
+             match_points = match_points[valid]
+             local_x = local_x[valid]
+             local_y = local_y[valid]
+             DSM = DSM[valid]
++            if save_candidate_provenance:
++                provenance_pnp_input_2d = np.asarray(match_points, dtype=np.float32)
++                provenance_pnp_input_3d = np.column_stack([local_x, local_y, DSM]).astype(np.float32)
++                provenance_pnp_object_points = provenance_pnp_input_3d.copy()
++                provenance_pnp_object_points[:, 1] *= -1.0
++
+             # These keep the same indexing as the PnP input and are used only for visualization.
+             # inliers_all returned by solvePnPRansac indexes these filtered arrays.
+             Sen_pts_valid = Sen_pts_arr[valid]
+@@ -1628,12 +1707,157 @@
+         time_list.append([single_match_time, pnp_time_end - match_time_end])
+         XYZ_list.append(XYZ)
+         inliers_list.append(int(inliers))
++
++        if save_candidate_provenance:
++            if provenance_local_x is None:
++                provenance_ref_coordinate = (
++                    provenance_ref_pts_patch
++                    + np.array([col0, row0], dtype=np.float32)
++                )
++                if reverseMatRotation is not None:
++                    provenance_ref_h = np.hstack(
++                        [
++                            provenance_ref_coordinate,
++                            np.ones((provenance_ref_coordinate.shape[0], 1), dtype=np.float32),
++                        ]
++                    )
++                    provenance_ref_coordinate = provenance_ref_h @ reverseMatRotation.T
++                provenance_local_x = (
++                    provenance_ref_coordinate[:, 0] * float(map_res[0])
++                    + float(map_origin[0])
++                ).astype(np.float32)
++                provenance_local_y = (
++                    provenance_ref_coordinate[:, 1] * float(map_res[1])
++                    + float(map_origin[1])
++                ).astype(np.float32)
++                provenance_dsm_z, provenance_valid = sample_dsm_local(
++                    dsm_image,
++                    provenance_local_x,
++                    provenance_local_y,
++                    dsm_resolution,
++                    dsm_origin_local,
++                )
++                provenance_valid = (
++                    provenance_valid
++                    & np.isfinite(provenance_uav_pts_original).all(axis=1)
++                    & np.isfinite(provenance_local_x)
++                    & np.isfinite(provenance_local_y)
++                    & np.isfinite(provenance_dsm_z)
++                )
++                provenance_pnp_input_2d = np.zeros((0, 2), dtype=np.float32)
++                provenance_pnp_input_3d = np.zeros((0, 3), dtype=np.float32)
++                provenance_pnp_object_points = np.zeros((0, 3), dtype=np.float32)
++            save_candidate_provenance_anyvisloc(
++                save_path=save_path,
++                scene_name=getattr(opt, "_current_scene_name", ""),
++                sample_id=getattr(opt, "_current_sample_id", ""),
++                candidate_slot=index,
++                retrieval_rank=index + 1,
++                ir_order_gallery_block_index=(int(ir_order_array[index]) if index < len(ir_order_array) else None),
++                row_start=row0,
++                col_start=col0,
++                patch_h=patch_h,
++                patch_w=patch_w,
++                uav_pts_match=provenance_uav_pts_match,
++                ref_pts_match=provenance_ref_pts_match,
++                uav_pts_original=provenance_uav_pts_original,
++                ref_pts_patch=provenance_ref_pts_patch,
++                local_x=provenance_local_x,
++                local_y=provenance_local_y,
++                dsm_z=provenance_dsm_z,
++                valid=provenance_valid,
++                pnp_input_2d=provenance_pnp_input_2d,
++                pnp_input_3d=provenance_pnp_input_3d,
++                pnp_object_points=provenance_pnp_object_points,
++                inlier_indices=inliers_all,
++                predicted_pose=XYZ,
++                inlier_count=inliers,
++                location_error_m=candidate_error_m,
++            )
+
+     match_time = [t[0] for t in time_list]
+     pnp_time = [t[1] for t in time_list]
+     return XYZ_list, inliers_list, match_time, pnp_time
+
+
++def save_candidate_provenance_anyvisloc(
++    *,
++    save_path,
++    scene_name,
++    sample_id,
++    candidate_slot,
++    retrieval_rank,
++    ir_order_gallery_block_index,
++    row_start,
++    col_start,
++    patch_h,
++    patch_w,
++    uav_pts_match,
++    ref_pts_match,
++    uav_pts_original,
++    ref_pts_patch,
++    local_x,
++    local_y,
++    dsm_z,
++    valid,
++    pnp_input_2d,
++    pnp_input_3d,
++    pnp_object_points,
++    inlier_indices,
++    predicted_pose,
++    inlier_count,
++    location_error_m,
++):
++    """Persist logging-only candidate provenance without affecting selection."""
++    candidate_dir = Path(save_path) / "candidate_provenance" / f"slot_{int(candidate_slot):02d}"
++    ensure_dir(candidate_dir)
++    np.savez_compressed(
++        str(candidate_dir / "matches_and_pnp_inputs.npz"),
++        uav_pts_match=np.asarray(uav_pts_match, dtype=np.float32),
++        ref_pts_match=np.asarray(ref_pts_match, dtype=np.float32),
++        uav_pts_original=np.asarray(uav_pts_original, dtype=np.float32),
++        ref_pts_patch=np.asarray(ref_pts_patch, dtype=np.float32),
++        local_x=np.asarray(local_x, dtype=np.float32),
++        local_y=np.asarray(local_y, dtype=np.float32),
++        dsm_z=np.asarray(dsm_z, dtype=np.float32),
++        valid=np.asarray(valid, dtype=bool),
++        pnp_input_2d=np.asarray(pnp_input_2d, dtype=np.float32),
++        pnp_input_3d=np.asarray(pnp_input_3d, dtype=np.float32),
++        pnp_object_points=np.asarray(pnp_object_points, dtype=np.float32),
++        inlier_indices=np.asarray(inlier_indices, dtype=np.int32),
++    )
++
++    predicted_pose = predicted_pose or {}
++    pnp_success = (
++        predicted_pose.get("X") is not None
++        and predicted_pose.get("Y") is not None
++        and int(inlier_count) > 0
++    )
++    save_json(
++        candidate_dir / "result.json",
++        {
++            "scene_name": str(scene_name),
++            "sample_id": str(sample_id),
++            "candidate_slot": int(candidate_slot),
++            "retrieval_rank": int(retrieval_rank),
++            "ir_order_gallery_block_index": ir_order_gallery_block_index,
++            "row_start": int(row_start),
++            "col_start": int(col_start),
++            "patch_h": int(patch_h),
++            "patch_w": int(patch_w),
++            "num_matches": int(len(np.asarray(ref_pts_match).reshape(-1, 2))),
++            "num_pnp_input": int(len(np.asarray(pnp_input_2d).reshape(-1, 2))),
++            "pnp_success": bool(pnp_success),
++            "pred_x": predicted_pose.get("X"),
++            "pred_y": predicted_pose.get("Y"),
++            "pred_z": predicted_pose.get("Z"),
++            "inlier_count": int(inlier_count),
++            "location_error_m": location_error_m,
++            "artifact": str(candidate_dir / "matches_and_pnp_inputs.npz"),
++        },
++    )
++
++
+ def pos2error_anyvisloc(truePos, XYZ_list, inliers_list):
+     """Choose the Top-N candidate with max PnP inliers and compute local XY error in meters.

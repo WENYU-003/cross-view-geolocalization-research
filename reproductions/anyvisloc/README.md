@@ -24,6 +24,27 @@ See [`notes/uavavl_related_work/12_uavavl_research_checkpoint.md`](../../notes/u
 
 The scripts are analysis-only. They must not be interpreted as changes to the AnyVisLoc matcher, DSM construction, PnP solver, or evaluation protocol.
 
+## GEO-1 candidate-provenance logging patch
+
+`patches/geo1_candidate_provenance.patch` adds an opt-in
+`--save_candidate_provenance` flag to the external AnyVisLoc full runner. The
+flag is disabled by default. When enabled, it records the existing matcher
+outputs, DSM validity, exact PnP inputs, RANSAC inlier indices, candidate poses,
+and the unchanged max-inlier candidate decision. It does not change retrieval,
+matching, DSM sampling, PnP parameters, random state, or candidate selection.
+
+Apply it from the root of the external `paper2_UAV_AVL` source tree:
+
+```bash
+patch -p1 < /path/to/cross-view-geolocalization-research/reproductions/anyvisloc/patches/geo1_candidate_provenance.patch
+```
+
+Run one control query without the flag and the same query with the flag, then
+use `verify_geo1_candidate_provenance_smoke.py` to require identical
+`best_index`, `pred_error`, and per-candidate inlier counts plus five complete,
+finite candidate records. This is provenance validation only; it is not a
+GEO-1 hypothesis test.
+
 ## Inputs and outputs
 
 Inputs are supplied through command-line arguments and normally point to external, immutable evidence bundles or server-local dataset locations. Do not hard-code machine paths in these scripts.
