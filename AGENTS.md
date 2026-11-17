@@ -9,7 +9,7 @@ The primary research direction is:
 - Cross-View Geo-Localization
 - UAV Visual Localization
 
-The current emphasis is **front-end visual algorithm innovation**, especially better visual representations, retrieval, matching, cross-view alignment, and geometry-aware features. Research questions must come before implementation. Do not change a model merely to make the work appear novel.
+The current primary research line is **text-enhanced multimodal cross-view geo-localization**, using GeoBridge as the baseline. The intended contribution remains in the visual/multimodal front end: representation, retrieval, cross-view alignment, textual disambiguation, and geometry-aware features. Research questions must come before implementation. Do not change a model merely to make the work appear novel.
 
 ## 2. Research Scope
 
@@ -19,6 +19,8 @@ Primary topics include:
 - feature extraction
 - feature matching
 - cross-view feature alignment
+- text-enhanced cross-view representation
+- vision-language alignment and textual disambiguation
 - Vision Transformer (ViT) and Transformer architectures
 - CLIP and multimodal representation
 - DINOv2 and foundation-model visual features
@@ -31,7 +33,13 @@ Traditional PnP, pose solvers, and UAV post-processing remain necessary evaluati
 
 ## 3. Current Research Stage
 
-The project is currently between **baseline reproduction, failure analysis, and bottleneck identification**. A final proposed method has **not** been formally selected.
+The active GeoBridge research line is at **primary-source verification and baseline documentation**. Baseline reproduction, failure analysis, and method selection have not started. A final proposed method has **not** been formally selected.
+
+### GeoBridge
+
+GeoBridge is the designated baseline for the text-enhanced multimodal cross-view geo-localization research phase. Until the primary paper, official implementation, dataset protocol, checkpoint identity, and evaluation definitions are inspected, its task, mechanisms, and reported results must remain explicitly unverified.
+
+Do not transfer AnyVisLoc or GAGeo task definitions, mechanisms, results, or failure explanations into GeoBridge without independent evidence.
 
 ### AnyVisLoc / UAV-AVL
 
@@ -111,6 +119,8 @@ Literature Survey
 
 Do not jump from an interesting idea directly to large-scale implementation. First identify the failure or limitation, express a falsifiable hypothesis, check related work, and design the smallest controlled experiment capable of changing the next research decision.
 
+Research questions should target mechanisms with plausible **cross-model or cross-scene relevance**. A failure isolated to one baseline, scene, split, or implementation may motivate diagnosis, but do not repeatedly design bespoke modules around isolated failures unless evidence supports a broader mechanism and a transferable evaluation plan.
+
 ## 6. Experiment Rules
 
 Every experiment must record the following fields:
@@ -138,6 +148,7 @@ Additional rules:
 - Separate retrieval-only, oracle/GT-reference, matching-and-geometry, and full-pipeline conclusions.
 - Do not rerun expensive baselines when existing artifacts can be verified and reused.
 - A successful run is not automatically a useful experiment; it must answer the stated question.
+- Explicitly distinguish text used only as **training supervision** from text provided as an **inference-time input**. Before proposing a text ablation, verify the model's actual training and inference interfaces; do not remove, add, shuffle, corrupt, or substitute inference-time text when that operation is incompatible with the verified model interface.
 
 ## 7. Coding Rules
 
@@ -232,7 +243,31 @@ Use diagrams, compact pseudocode, or before/after data-flow descriptions when th
 
 ## 12. Current Priority
 
-Work in the following order unless new evidence or an explicit user instruction changes it:
+GeoBridge is the active primary research line. Work in the following order unless new evidence or an explicit user instruction changes it:
+
+### GeoBridge A. Primary-source verification
+
+Verify the official paper identity, version, task, inputs, outputs, datasets, splits, metrics, text provenance, project page, and official code repository. Explicitly determine whether each text signal is used as training supervision, provided during inference, or both. Do not infer missing mechanisms or results from the method name.
+
+### GeoBridge B. Paper-code-protocol mapping
+
+Map each paper component and experimental claim to an official code revision, config, checkpoint, data path, and evaluation entry point. Record unavailable or conflicting provenance explicitly.
+
+### GeoBridge C. Reproducible baseline
+
+Begin with the smallest protocol-preserving smoke test. Preserve commands, config snapshots, checkpoint identity, environment information, sample counts, and per-sample outputs before scaling evaluation.
+
+### GeoBridge D. Failure analysis and bottleneck identification
+
+Separate visual, textual, multimodal-fusion, retrieval, data-construction, and evaluation failures. Include visual-only controls and tests for missing, generic, shuffled, noisy, or conflicting text only when those interventions are compatible with the verified training and inference interfaces.
+
+### GeoBridge E. Hypothesis and novelty gate
+
+Select a method change only after a reproducible text-relevant bottleneck, falsifiable hypothesis, leakage controls, closest-work check, and pre-registered Go/No-Go criteria have been established. Prefer hypotheses with plausible cross-model or cross-scene relevance over modules tailored to an isolated GeoBridge failure.
+
+### Deferred previous-line priorities
+
+The AnyVisLoc and GAGeo priorities below remain part of the scientific record but are paused unless explicitly resumed. Do not rewrite their existing results or evidence boundaries.
 
 ### A. Reproducible GAGeo per-sample failure dataset
 
