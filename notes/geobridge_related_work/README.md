@@ -34,12 +34,12 @@ method onto an unverified baseline.
 
 **Phase 0 — documentation and primary-source recovery: IN PROGRESS.**
 
-**Research progress — Limitation 1: Cross-View Semantic Observability.**
-Status: **NO-GO for direct method development**, because GeoBridge++ has
-substantial problem and method overlap through modality-aware and shared fact
-supervision. The evidence and causal boundary are archived in
-[`01_limitation_analysis.md`](01_limitation_analysis.md). Next stage:
-**Cross-Paper Shared Assumption Analysis**.
+**研究进度——局限性分析 1：跨视角语义可观察性（Cross-View Semantic
+Observability）。** 当前状态为 **NO-GO for direct method development**：
+GeoBridge++ 通过模态相关事实监督和共享事实监督，已与该问题及候选方法形成显著
+重叠。相关证据和因果边界已归档于
+[`01_limitation_analysis.md`](01_limitation_analysis.md)。下一阶段为
+**跨论文共同假设分析（Cross-Paper Shared Assumption Analysis）**。
 
 Current facts are limited to the supervisor-defined research direction and
 baseline choice. The local repository does not yet contain a verified paper

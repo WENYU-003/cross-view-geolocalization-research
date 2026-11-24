@@ -1,395 +1,414 @@
-# GeoBridge Limitation 1 — Cross-View Semantic Observability
+# GeoBridge 局限性分析 1：跨视角语义可观察性（Cross-View Semantic Observability）
 
-> **Decision:** **NO-GO for direct method development**
+> **研究决策：** **NO-GO for direct method development（不进入直接方法开发）**
 >
-> **Status:** novelty review archived on 2026-11-24; no experiment performed
+> **归档状态：** 已于 2026-11-24 完成新颖性核查；未实施实验
 >
-> **Scope:** GeoBridge semantic-anchor supervision and its overlap with
-> GeoBridge++ fact-guided supervision
+> **分析范围：** GeoBridge 的语义锚点监督，以及它与 GeoBridge++
+> 事实引导监督之间的新颖性核查（Novelty Check）
 
-## 1. Evidence conventions
+## 文档证据规范
 
-This note separates four evidence levels:
+本文严格区分以下证据层级：
 
-- **[Paper Evidence]**: directly supported by the identified primary-paper
-  version and section.
-- **[Experimental Evidence — paper-reported]**: evidence reported by the
-  authors; not locally reproduced.
-- **[Research Interpretation]**: our evidence-bounded reading; not an author
-  claim.
-- **[Unverified Hypothesis]**: a falsifiable explanation requiring controlled
-  evidence.
+- **【论文证据】（Paper Evidence）**：由已确认版本的原论文及其具体章节直接支持。
+- **【实验依据：论文报告】（Experimental Evidence — Paper-Reported）**：
+  由论文作者报告，但尚未由我们在本地复现。
+- **【研究分析】（Research Interpretation）**：基于现有证据作出的研究性归纳，
+  不是论文作者的直接结论。
+- **【未验证假设】（Unverified Hypothesis）**：可证伪、但仍需要对照实验验证的解释。
+- **【研究决策】（Research Decision）**：由当前证据和新颖性边界支持的阶段性决策。
+- **【不确定性】（Uncertainty）**：因代码、数据、协议或来源不足而无法确认的事项。
 
-No result in this note is **[Locally reproduced]**.
+本文没有任何结果达到“本地复现”（Locally Reproduced）证据等级。
 
-## 2. Primary sources and version boundary
+## 1. 研究背景与问题来源
 
-### GeoBridge
+### 1.1 研究动机
 
-- **[Paper Evidence]** Zixuan Song, Jing Zhang, Di Wang, Zidie Zhou, Wenbin
-  Liu, Haonan Guo, En Wang, and Bo Du, *GeoBridge: A Semantic-Anchored
-  Multi-View Foundation Model Bridging Images and Text for Geo-Localization*,
-  CVPR 2026, pp. 27793–27803.
-- The method evidence below uses
-  [arXiv:2512.02697v3](https://arxiv.org/abs/2512.02697v3), revised
-  2026-04-15. This is the last arXiv version carrying the GeoBridge title before
-  the record was expanded and retitled.
-- Relevant sections: Sec. 1, Sec. 3.1–3.2, Sec. 5.4, and supplementary Sec. 10.
+**【研究分析】** GeoBridge 使用一段位置级统一文本描述，作为无人机视角、
+街景全景视角和卫星视角共同的语义锚点（Semantic Anchor）。因此，在讨论
+“文本平均而言是否有用”之外，还需要提出一个更细致的问题：统一描述中的每一项
+语义，是否都能被每一个受监督视角直接观察，或者至少被该视角可靠推断？
 
-### GeoBridge++
+这段文本并非仅作为图像旁边的元数据保存。训练期间，它通过文本—图像对比学习
+（Text–Image Contrastive Learning）监督每一个视觉分支。因此，只被某个视角支持、
+却不被另一个视角支持的描述内容，可能产生两种相反作用：
 
-- **[Paper Evidence]** The verified title is *GeoBridge++: Fact-Guided
-  Geo-Semantic Bridging for Unified Cross-View Geo-Localization* by Zixuan
-  Song, Jing Zhang, Di Wang, Zhiming Luo, Wenbin Liu, Haonan Guo, En Wang, Bo
-  Du, and Liangpei Zhang.
-- The inspected source is
-  [arXiv:2512.02697v5](https://arxiv.org/abs/2512.02697v5), revised
-  2026-09-28. The official project calls it an “extended journal version,” but
-  the inspected arXiv record does not establish a final journal venue. It is
-  therefore recorded here as an extended preprint, not a verified journal
-  publication.
-- Relevant sections: Sec. I, Sec. II-C, Sec. III-B–III-C, Sec. V-D, Tables XIV
-  and XV, and Appendix G-A.
+1. 它可能提供有价值的位置级互补知识，帮助不同视角学习共享表示；
+2. 它也可能形成监督不匹配（Supervision Mismatch），使某个视角被迫对齐到
+   自身无法观察或可靠推断的语义。
 
-Sources were inspected on 2026-11-24. The
-[official project repository](https://github.com/MiliLab/GeoBridge) identifies
-GeoBridge++ as the extended version of GeoBridge.
+本次“局限性分析 1”在提出任何新方法之前，先分析这两种可能性及其可验证边界。
 
-## 3. Research motivation
+### 1.2 主要论文来源与版本边界
 
-**[Research Interpretation]** GeoBridge uses one location-level textual
-description as a semantic anchor shared by drone, street-view panorama, and
-satellite branches. This motivates a question distinct from whether text is
-useful on average: must every semantic statement in that description be
-directly observable, or at least reliably inferable, from every supervised
-view?
+#### GeoBridge
 
-The anchor contributes a text–image contrastive objective for every visual
-branch during training. A statement supported by one view but not another may
-act either as useful location-level complementary knowledge or as mismatched
-supervision. Limitation 1 examines that ambiguity before any method proposal.
+- **【论文证据】** Zixuan Song、Jing Zhang、Di Wang、Zidie Zhou、
+  Wenbin Liu、Haonan Guo、En Wang、Bo Du，*GeoBridge: A
+  Semantic-Anchored Multi-View Foundation Model Bridging Images and Text for
+  Geo-Localization*，CVPR 2026，pp. 27793–27803。
+- 本文对原始方法的分析依据为
+  [arXiv:2512.02697v3](https://arxiv.org/abs/2512.02697v3)，修订日期为
+  2026-04-15。这是该 arXiv 记录被扩展并改名之前，最后一个仍以 GeoBridge
+  为标题的版本。
+- 重点核查章节：Sec. 1、Sec. 3.1–3.2、Sec. 5.4，以及补充材料 Sec. 10。
 
-## 4. Paper evidence: GeoBridge semantic anchor
+#### GeoBridge++
 
-### 4.1 Unified three-view description
+- **【论文证据】** 准确标题为 *GeoBridge++: Fact-Guided Geo-Semantic
+  Bridging for Unified Cross-View Geo-Localization*。作者为 Zixuan Song、
+  Jing Zhang、Di Wang、Zhiming Luo、Wenbin Liu、Haonan Guo、En Wang、
+  Bo Du 和 Liangpei Zhang。
+- 本文核查的是
+  [arXiv:2512.02697v5](https://arxiv.org/abs/2512.02697v5)，修订日期为
+  2026-09-28。官方项目称其为“extended journal version”，但已核查的 arXiv
+  页面本身没有确认最终期刊名称，因此本文将其记录为“GeoBridge 扩展预印本”，
+  而不将其写成已确认的期刊论文。
+- 重点核查章节：Sec. I、Sec. II-C、Sec. III-B–III-C、Sec. V-D、
+  Tables XIV–XV，以及 Appendix G-A。
 
-- **[Paper Evidence]** Sec. 1 states that GeoBridge distills drone,
-  street-view, and satellite imagery into a unified, location- and view-aware
-  textual description during training.
-- **[Paper Evidence]** Sec. 3.2 defines a training quadruple containing the
-  three aligned images and one text. A single paragraph is constructed for the
-  location and is intended to emphasize stable cues and relations while
-  avoiding transient elements and viewpoint-specific phrasing.
-- **[Paper Evidence]** Supplementary Sec. 10 documents controlled description
-  generation and excludes transient or unstable content. It does not report a
-  per-view observability label for every phrase in the unified paragraph.
+上述来源于 2026-11-24 完成核查。
+[官方项目仓库](https://github.com/MiliLab/GeoBridge)将 GeoBridge++ 标识为
+GeoBridge 的扩展版本。
 
-### 4.2 Image–image and text–image alignment
+## 2. GeoBridge 原始方法及论文证据
 
-- **[Paper Evidence]** Sec. 3.2, Eqs. (1)–(4), applies InfoNCE losses to the
-  drone–street, street–satellite, and satellite–drone image pairs and averages
-  them as $\mathcal{L}_{\mathrm{img}}$.
-- **[Paper Evidence]** Eq. (5) aligns the same text representation with each
-  drone, street, and satellite representation as
-  $\mathcal{L}_{\mathrm{text}}$.
-- **[Paper Evidence]** Eq. (6) uses
-  $\mathcal{L}_{\mathrm{total}}=\mathcal{L}_{\mathrm{img}}+
-  \mathcal{L}_{\mathrm{text}}$.
-- **[Experimental Evidence — paper-reported]** Sec. 5.4, Table 8 reports that
-  the combined GeoBridge objective has the highest Recall@1 in all six tested
-  directions compared with image-only and text-only alignment. This supports
-  semantic-anchor utility under that protocol, but does not test phrase-level
-  or view-level observability.
+### 2.1 三视图统一文本描述
 
-### 4.3 Training-time text versus inference-time text
+- **【论文证据】** Sec. 1 说明，GeoBridge 在训练期间将无人机、街景和卫星
+  图像提炼为统一的、位置感知且视角感知的文本描述，并将其作为跨模态语义桥梁。
+- **【论文证据】** Sec. 3.2 将一个训练样本定义为由三张对齐图像和一段文本
+  组成的四元组。每个地理位置对应一个简洁段落，描述应强调稳定语义线索及其关系，
+  同时避免瞬时元素和依赖特定视角的表达。
+- **【论文证据】** 补充材料 Sec. 10 记录了受控的文本生成要求，并明确排除
+  瞬时或不稳定内容。然而，论文没有为统一段落中的每一个短语提供逐视角的
+  “可观察/不可观察”标注。
 
-- **[Paper Evidence]** Sec. 3.2 explicitly states that image-to-image retrieval
-  is text-free at inference: query and gallery images are encoded and ranked in
-  the learned shared space.
-- **[Paper Evidence]** Text remains an optional query modality for the separate
-  text-to-image retrieval task.
-- **[Research Interpretation]** Limitation 1 concerns **training supervision**,
-  not removal of text from ordinary image–image inference. A valid ablation
-  must retrain comparable models; changing inference-time text would not test
-  the verified image–image interface.
+### 2.2 图像—图像与文本—图像对齐
 
-## 5. Underlying assumption
+- **【论文证据】** Sec. 3.2，Eqs. (1)–(4) 对无人机—街景、街景—卫星、
+  卫星—无人机三组图像对应用 InfoNCE 对比损失，并将其平均为
+  $\mathcal{L}_{\mathrm{img}}$。
+- **【论文证据】** Eq. (5) 使用同一个文本表示分别对齐无人机、街景和卫星
+  表示，得到 $\mathcal{L}_{\mathrm{text}}$。
+- **【论文证据】** Eq. (6) 以相同权重组合两类目标：
 
-**[Research Interpretation]** The design can be summarized as depending on the
-following premise:
+  $$
+  \mathcal{L}_{\mathrm{total}}
+  =\mathcal{L}_{\mathrm{img}}+\mathcal{L}_{\mathrm{text}}.
+  $$
 
-> A unified location description constructed from all three views provides
-> useful shared semantic supervision for each individual visual branch.
+- **【实验依据：论文报告】** Sec. 5.4、Table 8 比较了仅图像对齐
+ （Image-only）、仅文本—图像对齐（Text-only）和联合目标 GeoBridge。
+  论文报告联合目标在六个检索方向上均获得最高 Recall@1。这说明在该论文协议下，
+  语义锚点整体上具有实用价值；但该消融没有检验短语级或逐视角语义可观察性。
 
-The authors do not state this sentence as a formal assumption. It is our
-method-level abstraction of applying the same text target to all three views.
-“Useful” need not mean that every phrase is literally visible in every image;
-reliably inferable, complementary location context may still help.
+### 2.3 训练时文本监督与推理时文本输入
 
-## 6. Potential contradiction
+- **【论文证据】** Sec. 3.2 明确说明，图像到图像检索在推理阶段不需要文本：
+  查询图像和图库图像被编码到共享空间后直接完成排序。
+- **【论文证据】** 在另一项“文本到图像检索”任务中，文本仍可作为可选查询模态。
+- **【研究分析】** 因此，本次局限性主要针对**训练时文本监督**，而不是在常规
+  图像—图像推理阶段删除文本。有效的文本消融必须重新训练可比较的模型；在已经
+  不使用文本的图像—图像推理接口上删除或替换文本，并不能检验本研究问题。
 
-**[Research Interpretation]** Different views expose different evidence. A
-drone image may clearly reveal roof geometry and road layout, while a street
-panorama may reveal facade material, entrances, or street-level signs. A
-unified description could mention both roof structure and facade appearance
-even though neither view directly observes the whole statement.
+## 3. 隐含假设与潜在矛盾
 
-This is an **illustrative example**, not a real GeoBridge failure sample. No
-current phrase-grounding annotation, per-sample failure set, or causal
-measurement shows that such a mismatch harms GeoBridge.
+### 3.1 隐含假设
 
-## 7. Competing explanations
+**【研究分析】** GeoBridge 的语义锚点设计可以归纳为以下前提：
 
-### H1 — Complementary Supervision
+> 由三个视角共同构造的统一位置描述，能够为每一个独立视觉分支提供有效的
+> 共享语义监督。
 
-**[Unverified Hypothesis]** Unified text supplies useful complementary
-location-level context. Even when a cue is not directly visible in one view,
-association with co-located views may help that branch learn a shared,
-discriminative representation.
+论文作者没有将这句话明确写成正式假设。它是我们根据“同一文本目标同时监督三个
+视角”这一设计作出的研究性抽象。这里的“有效”也不要求每个短语都必须逐字可见；
+只要位置级上下文可以被可靠推断，互补信息仍然可能帮助表示学习。
 
-### H2 — Supervision Mismatch
+### 3.2 潜在矛盾：不同视角的语义可见范围不同
 
-**[Unverified Hypothesis]** When unified text contains information a view can
-neither observe nor reliably infer, forcing that view toward the same text
-embedding may introduce noisy or conflicting supervision and reduce retrieval
-performance.
+**【研究分析】** 不同视角不会暴露完全相同的视觉证据。例如，无人机图像可能
+清楚呈现屋顶几何和道路布局，而街景全景图可能清楚呈现建筑立面材料、入口或
+街道标识。一段统一文本可能同时提到屋顶结构和立面外观，但任一单独视角都未必
+能直接观察完整描述。
 
-H1 and H2 may both hold for different facts or scenes. Neither is verified.
+上述内容只是**示意性例子**，不是从 GeoBridge 真实失败样本中得到的结论。
+当前没有短语级视觉落地标注、逐样本失败集合或因果测量能够证明这种不匹配已经
+损害了 GeoBridge。
 
-## 8. Observable prediction and causal boundary
+## 4. 竞争性解释：H1 与 H2
 
-If H2 is correct, then after controlling scene difficulty and other
-confounders, low target-view observability samples should obtain a smaller gain
-from unified-text supervision than matched high-observability samples, and may
-show a negative gain relative to a visibility-controlled model.
+### H1 — 互补监督（Complementary Supervision）
 
-**[Unverified Hypothesis]** A decision-relevant quantity would be a matched
-treatment effect such as:
+**【未验证假设】** 统一文本提供有益的位置级互补上下文。即使某项线索在一个
+视角中不可直接看见，与其他共址视角之间的关联仍可能帮助该分支学习共享且具有
+区分性的表示。
+
+### H2 — 监督不匹配（Supervision Mismatch）
+
+**【未验证假设】** 当统一文本包含某个视角既无法观察、也无法可靠推断的信息时，
+强迫该视角对齐到同一个文本嵌入，可能引入噪声或相互冲突的监督，并降低检索性能。
+
+H1 与 H2 不必在整个数据集层面互斥：对于某些事实或场景，互补监督可能占主导；
+对于另一些事实或场景，监督不匹配可能占主导。两者都尚未得到直接验证。
+
+## 5. 可观察预测与因果归因
+
+如果 H2 成立，那么在控制场景难度和其他混杂因素后，目标视角语义可观察性较低的
+样本，从统一文本监督中获得的收益应小于与之匹配的高可观察性样本；相对于
+“可观察性受控文本”模型，它们甚至可能出现负收益。
+
+**【未验证假设】** 一个具有决策意义的量可以是匹配样本或匹配组上的处理效应：
 
 ```text
 Delta R@1 = R@1(Model B: visibility-controlled text)
            - R@1(Model A: unified three-view text)
 ```
 
-It should be compared across pre-registered observability groups with
-repeated-seed uncertainty or confidence intervals.
+应在预先注册的可观察性分组上比较该效应，并通过重复随机种子或置信区间表达
+不确定性。
 
-**Causal warning:** a lower absolute Recall@1 for low-observability samples is
-not evidence that observability caused the difference. These samples may have
-harder geometry, fewer landmarks, poorer image quality, greater occlusion, or
-harder negatives. The required evidence is a controlled difference in the
-effect of the text-supervision intervention, not a raw between-group gap.
+### 因果边界
 
-## 9. Candidate controlled experiment — not executed
+低可观察性样本的绝对 Recall@1 较低，**不足以证明**语义可观察性导致了性能差异。
+这些样本也可能具有更困难的几何关系、更少的显著地标、更差的图像质量、更严重的
+遮挡或更困难的负样本。需要检验的是文本监督干预所产生的受控效应差异，而不是
+两个样本组之间未经控制的绝对性能差异。
 
-### 9.1 Compared training conditions
+## 6. 候选对照实验设计（尚未执行）
 
-- **Model A — original condition:** the original three-view unified text
-  supervises every visual branch.
-- **Model B — visibility-controlled condition:** each visual branch is
-  supervised only by text constrained to information observable or reliably
-  inferable from that target view.
+### 6.1 模型条件
 
-The following must remain identical or be explicitly matched:
+- **Model A — 原始条件：**使用原始三视图统一文本监督每一个视觉分支。
+- **Model B — 可观察性受控条件：**每个视觉分支只接受受限于该目标视角
+  “可观察或可可靠推断信息”的文本监督。
 
-- visual architecture, initialization, trainable parameters, and losses;
-- training images, identities, negatives, and test split;
-- optimizer, steps/epochs, batch construction, seeds, and compute budget;
-- text length and token budget;
-- description accuracy and hallucination rate;
-- specificity, discriminative strength, and semantic information quantity;
-- evaluation directions, galleries, and Recall/AP definitions.
+以下因素必须保持完全相同，或通过明确方法实现可比：
 
-Evaluation would require per-direction metrics, per-sample outputs, and
-observability-stratified treatment effects. Any example numbers discussed for
-this design are hypothetical teaching examples, not results.
+- 视觉架构、参数初始化、可训练参数和损失函数；
+- 训练图像、位置身份、负样本和测试划分；
+- 优化器、训练步数或轮数、批次构造、随机种子和计算预算；
+- 文本长度和分词器 token 预算；
+- 描述准确性和幻觉率；
+- 文本具体程度、区分能力和语义信息量；
+- 评估方向、图库构造以及 Recall/AP 指标定义。
 
-### 9.2 Candidate multimodal-AI text-generation schemes
+评估应同时保存各检索方向的总体指标、逐样本输出和按语义可观察性分层的处理效应。
+此前讨论该设计时出现的任何示例数值都只是教学用假设值，不是真实实验结果。
 
-1. **Tri-view evidence with target-view observability constraint:** provide all
-   three images to the generator but retain only information observable from
-   the target view.
-2. **Target-view-only generation:** provide only the target-view image.
+### 6.2 多模态 AI 文本生成候选方案
 
-These are not equivalent controls. The first retains cross-view context while
-changing allowed output; the second changes the generator's information set.
-Differences may arise from context, accuracy, specificity, or information
-quantity rather than observability alone.
+1. **三视图证据 + 目标视角可观察性约束：**向生成模型提供三张对齐图像，
+   但要求输出只保留目标视角能够观察的信息。
+2. **仅目标视角生成：**生成模型只能看到目标视角图像，并据此生成描述。
 
-### 9.3 Required Go/No-Go test
+这两种方案不是等价的对照条件。第一种方案保留了生成阶段的跨视角上下文，只改变
+允许输出的语义；第二种方案直接改变生成模型的信息输入集合。因此，二者的差异
+可能来自跨视角上下文、生成准确性、文本具体程度或信息量，而不一定来自语义
+可观察性本身。不能将它们合并成同一种实验处理。
 
-A causal test would require a frozen observability definition, matched text
-statistics, identical training conditions, multiple seeds, and per-sample
-predictions. GO would require a reproducible, direction-consistent improvement
-attributable to visibility control. The experiment was not launched because
-the novelty gate failed first and official training assets remain incomplete.
+### 6.3 原计划所需的 Go/No-Go 检验
 
-## 10. Confounding variables
+若要建立因果证据，需要预先冻结语义可观察性定义、匹配文本统计特征、保持训练
+条件一致、运行多个随机种子，并保存逐样本预测。只有当“可观察性控制”带来可复现、
+跨检索方向一致且在控制混杂因素后仍成立的提升，才足以支持 GO。
 
-- text length and tokenizer truncation;
-- factual accuracy and hallucination rate;
-- semantic specificity and discriminative information;
-- scene complexity and visible-landmark count;
-- inherent localization difficulty and hard-negative density;
-- occlusion, spatial coverage, viewpoint, scale, and image quality;
-- generator/model version, decoding settings, and prompt;
-- observability definition and annotation reliability;
-- training randomness, sampling, seed variance, and convergence;
-- extra parameters or encoders introduced by the treatment.
+该实验没有启动：新颖性门控（Novelty Gate）先判定为不通过，同时官方训练资源
+仍不完整。
 
-Without these controls, a gain from target-view-specific text could reflect
-easier language or fewer hallucinations rather than observability.
+## 7. 混杂因素与实验有效性
 
-## 11. Reproducibility constraints
+未来若重新开展因果研究，至少需要控制或记录：
 
-- **[Official code audit]** At audited official commit
-  `636c413c58615669bb8b95c3eecedf161d3e523f`, the public repository does not
-  provide the complete training pipeline required to reconstruct this
-  semantic-anchor ablation.
-- **[Uncertainty]** The project advertises model and dataset releases, but the
-  previous audit did not establish a complete, protocol-frozen GeoLoc training
-  dataset with all text-generation provenance.
-- **[Uncertainty]** No verified public checkpoint corresponds to the proposed
-  visibility-controlled Model B.
-- **[Uncertainty]** Missing training and evaluation details prevent a faithful
-  intervention without inventing protocol choices.
+- 文本长度和分词器截断；
+- 文本事实准确性和幻觉率；
+- 语义具体程度和可区分信息量；
+- 场景复杂度和可见地标数量；
+- 图像本身的定位难度和困难负样本密度；
+- 遮挡、空间覆盖范围、视角、尺度和图像质量；
+- 描述生成模型及版本、解码设置和 Prompt 差异；
+- 可观察性定义、标注协议和标注/生成可靠性；
+- 训练随机性、采样方式、随机种子方差和收敛状态；
+- 实验条件额外引入的参数或文本编码器。
 
-The candidate experiment has therefore **not** been implemented or run. The
-synthetic S0 architecture smoke work is unrelated and provides no evidence for
-H1 or H2.
+如果不控制这些变量，目标视角专属文本所产生的提升可能只是因为语言更简单、
+幻觉更少或信息量更低，而不是语义可观察性得到改善。
 
-## 12. GeoBridge++ novelty check
+## 8. GeoBridge++ 相关工作核查
 
-### 12.1 Explicit observability discussion
+### 8.1 是否明确讨论不同模态的可观察信息差异？
 
-GeoBridge++ discusses the issue explicitly:
+答案是：**明确讨论了。**
 
-- **[Paper Evidence]** Sec. I states that modalities differ in observable
-  content and semantic expressiveness, motivating guidance within their
-  respective observable scopes.
-- **[Paper Evidence]** Sec. III-C.1 states that visual observations mainly
-  capture appearance and scene structure, while static maps encode symbolic
-  layouts; facts supervise view groups according to semantic relevance.
-- **[Paper Evidence]** Sec. II-C contrasts GeoBridge's unified,
-  appearance-derived description with GeoBridge++'s OSM-derived attributes,
-  modality-aware facts, and shared location-level bridge.
+- **【论文证据】** Sec. I 指出，不同模态在可观察内容和语义表达能力上存在差异，
+  因此应在各自的可观察范围内施加有针对性的事实引导。
+- **【论文证据】** Sec. III-C.1 指出，视觉观测主要捕获外观和场景结构，
+  静态地图则显式编码符号化地理布局；不同事实应依据语义相关性监督不同视角组。
+- **【论文证据】** Sec. II-C 将原始 GeoBridge 主要依赖外观的统一文本描述，
+  与 GeoBridge++ 引入的 OSM 物理属性、模态相关事实和共享位置级桥接进行对比。
 
-This substantially overlaps Limitation 1's broad premise that one common text
-target may not be equally supported by every modality.
+因此，GeoBridge++ 与 Limitation 1 的宽泛前提存在显著重叠：同一个统一文本目标
+不一定被所有模态以相同程度支持。
 
-### 12.2 Fact definitions and supervised modalities
+### 8.2 三类事实及其监督视角
 
-| Fact type | Definition | Supervised views | Evidence |
+| 事实类型 | 论文定义 | 监督视角 | 论文位置 |
 | --- | --- | --- | --- |
-| Geographic facts ($q_g$) | Normalized OSM roads, buildings, land use, amenities, waterways, and spatial structure | Drone, satellite, map: $\{d,s,m\}$ | Sec. III-C.1, Eqs. (7)–(8) |
-| Visual facts ($q_v$) | Stable consensus/discriminative attributes from drone, satellite, and street observations | Drone, satellite, street: $\{d,s,t\}$ | Sec. III-C.1, Eqs. (9)–(10) |
-| Shared geo-visual facts ($q_{sh}$) | Attributes mutually supported by geographic structure and multi-view visual evidence | All four: $\{d,s,t,m\}$ | Sec. III-C.1, Eqs. (11)–(12) |
+| 地理事实（Geographic Facts，$q_g$） | 从归一化的 OSM 道路、建筑、土地利用、设施、水系和空间结构中得到 | 无人机、卫星、静态地图：$\{d,s,m\}$ | Sec. III-C.1，Eqs. (7)–(8) |
+| 视觉事实（Visual Facts，$q_v$） | 从无人机、卫星和街景观测中提取的稳定共识属性与区分性视觉属性 | 无人机、卫星、街景：$\{d,s,t\}$ | Sec. III-C.1，Eqs. (9)–(10) |
+| 共享地理—视觉事实（Shared Geo-Visual Facts，$q_{sh}$） | 同时得到地理结构与多视图视觉证据支持的属性 | 全部四个视角：$\{d,s,t,m\}$ | Sec. III-C.1，Eqs. (11)–(12) |
 
-**[Paper Evidence]** Shared facts retain mutually supported properties such as
-building density, openness, layout regularity, vegetation/open space, surface
-characteristics, and stable structures. Source-only or inconsistent attributes
-are discarded.
+**【论文证据】** 共享事实保留建筑密度、空间开放程度、布局规则性、植被或开放
+空间、表面特征和稳定结构等得到双方证据支持的属性。只被单一来源支持、或在不同
+来源间明显矛盾的属性会被剔除。
 
-### 12.3 Difference from the original semantic anchor
+### 8.3 GeoBridge++ 与原始语义锚点的主要区别
 
-- **GeoBridge:** one unified description from three visual views aligns all
-  three image branches, alongside explicit pairwise image losses.
-- **GeoBridge++:** three fact channels with distinct semantic scopes and
-  supervised view groups, plus a geo-semantic bridge aggregating four image
-  modalities into a shared location representation.
-- **[Research Interpretation]** GeoBridge++ addresses both sides of the
-  tension: modality-relevant facts preserve differences, while shared facts
-  preserve a common reference. This is broader than “replace unified text with
-  single-view text.”
+- **GeoBridge：**由三个视觉视角生成一段统一描述，用同一文本锚点对齐三个
+  图像分支，同时使用显式图像对图像损失。
+- **GeoBridge++：**使用三个具有不同语义范围、监督不同视角组的事实通道，
+  并加入地理语义桥接（Geo-Semantic Bridge），将四个图像模态聚合为共享的
+  位置级表示。
+- **【研究分析】** GeoBridge++ 同时处理了原问题的两个侧面：模态相关事实
+  保留不同观测的特性，共享地理—视觉事实维持共同参考空间。这已经超出
+  “把统一文本替换为单视角文本”的简单方案。
 
-### 12.4 Fact-combination ablation
+### 8.4 事实组合消融实验
 
-**[Experimental Evidence — paper-reported]** Sec. V-D and Table XV report
-Recall@1 on map-augmented GeoLoc. Selected columns are recorded for the novelty
-decision:
+**【实验依据：论文报告】** Sec. V-D 和 Table XV 报告了 map-augmented GeoLoc
+设置下的 Recall@1。为支持本次新颖性决策，保留论文表格中的以下代表性列：
 
-| Facts | D2S | T2S | D2T | D2M | T2M |
+| 事实组合 | D2S | T2S | D2T | D2M | T2M |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| G only | 46.81 | — | — | 40.46 | — |
-| V only | 52.19 | 39.49 | 42.55 | — | — |
-| SH only | 47.39 | 25.58 | 27.92 | 37.08 | 21.70 |
+| 仅 G | 46.81 | — | — | 40.46 | — |
+| 仅 V | 52.19 | 39.49 | 42.55 | — | — |
+| 仅 SH | 47.39 | 25.58 | 27.92 | 37.08 | 21.70 |
 | G + V | 51.99 | 17.72 | 21.53 | 31.17 | 8.56 |
 | G + V + SH | **58.01** | **49.69** | **55.86** | **49.09** | **39.58** |
 
-G, V, and SH denote geographic, visual, and shared facts. “—” is outside that
-fact type's supervised scope, not a zero score. The full table has fourteen
-directions.
+其中 G、V、SH 分别表示地理事实、视觉事实和共享地理—视觉事实。“—”表示该检索
+方向不在对应事实类型的监督范围内，并不表示分数为零。完整 Table XV 共报告
+十四个检索方向。
 
-The authors interpret degradation under G+V without SH as evidence that
-separate modality-aware constraints alone do not maintain a globally
-consistent space; SH connects the groups. Table XIV also reports Fact+Bridge
-as strongest on most directions relative to Fact-only, Bridge-only,
-Pairwise-only, and Fact+Pairwise.
+论文作者将 G+V 缺少 SH 时多个方向的下降解释为：仅使用相互分离的模态相关约束，
+不足以维持全局一致的嵌入空间；SH 可以连接这些监督组。Table XIV 还报告，
+Fact+Bridge 在大多数方向上优于 Fact-only、Bridge-only、Pairwise-only 和
+Fact+Pairwise。
 
-### 12.5 Supported and unsupported conclusions
+### 8.5 这些实验能够支持什么？
 
-The paper-reported experiments support, within that protocol:
+在论文的 map-augmented GeoLoc 协议内，它们支持：
 
-- practical value from assigning fact supervision to relevant modality groups;
-- value from retaining shared facts alongside modality-aware supervision;
-- complementarity between fact guidance and the geo-semantic bridge.
+- 根据语义相关性将不同事实监督分配给不同模态组具有实际价值；
+- 在模态相关监督之外保留共享事实参考具有实际价值；
+- 事实引导与地理语义桥接具有互补性。
 
-They do **not** strictly prove:
+以上均为论文报告结果，不是我们本地复现得到的实验依据。
 
-- that an unobservable phrase caused a specific original GeoBridge failure;
-- that view-specific text alone beats unified text under an otherwise
-  identical GeoBridge protocol;
-- that observability is the isolated cause, because GeoBridge++ also changes
-  facts, data sources, view set, encoders, losses, bridge, and training data;
-- that the results are locally reproduced or universal across models/scenes.
+### 8.6 这些实验不能证明什么？
 
-GeoBridge++ validates the relevance of modality-aware and shared fact
-supervision, but neither confirms nor refutes H2 as a clean causal claim about
-the original semantic anchor.
+它们不能严格证明：
 
-## 13. Novelty assessment and formal decision
+- 原始 GeoBridge 中某个不可观察短语导致了某个具体检索失败；
+- 在其他条件完全相同的 GeoBridge 训练协议下，单视角文本一定优于统一文本；
+- 语义可观察性是性能变化的唯一因果变量，因为 GeoBridge++ 同时改变了事实来源、
+  视角集合、编码器、损失、桥接架构和训练数据；
+- 论文结果已经被我们本地复现；
+- 该机制能够普遍推广到所有模型、数据集和场景。
 
-**[Research Interpretation]** Overlap is high at both problem and design
-levels. GeoBridge++ starts from limitations of unified appearance-driven text,
-recognizes observable scopes, applies modality-related fact supervision, adds
-shared facts, and reports direct fact-type ablations.
+因此，GeoBridge++ 证明了“模态相关事实 + 共享事实监督”是有实证价值的研究方向，
+但它既没有严格确认，也没有严格否定 H2 对原始 GeoBridge 语义锚点的因果解释。
 
-### Decision
+## 9. 新颖性边界分析
 
-**NO-GO for direct method development.**
+**【研究分析】** GeoBridge++ 与本研究方向在问题层面和设计层面的重叠都很高：
 
-Do not use either of these as the primary new contribution:
+- 它从统一、外观驱动文本的局限出发；
+- 它明确识别不同模态的可观察范围；
+- 它为不同模态组分配相关事实监督；
+- 它用共享事实保持全局语义一致性；
+- 它已经报告事实类型及事实组合消融。
 
-- replacing unified text with single-view-generated text;
-- simply assigning separate view-specific text supervision to each branch.
+因此，仅将统一文本改为单视角文本，或简单给不同分支分配专属文本，无法形成充分的
+新颖性边界。虽然原始因果假设仍未被直接验证，但“因果问题尚未完全回答”不等于
+“一个高度重叠的直接方法仍具有算法新颖性”。
 
-GeoBridge++ already studies the broad limitation and implements modality-aware
-plus shared fact supervision. The original direction therefore lacks
-sufficient novelty.
+## 10. 复现资源与实验可行性
 
-This does **not** mean H2 has been causally verified or falsified, unified text
-is always harmful, GeoBridge++ solves every scene, or the broader multimodal
-direction is NO-GO. No new network module is proposed here.
+- **【官方代码审计】** 在已审计官方提交
+  `636c413c58615669bb8b95c3eecedf161d3e523f` 中，公开仓库没有提供重建
+  该语义锚点消融所需的完整训练流程。
+- **【不确定性】** 官方项目页面声明已经发布模型和数据集，但此前审计没有确认
+  一个协议冻结、内容完整且包含全部文本生成来源的 GeoLoc 训练数据版本。
+- **【不确定性】** 目前没有经核验的公开 Checkpoint 对应本研究提出的
+  “可观察性受控 Model B”；它不是官方消融条件。
+- **【不确定性】** 缺失的训练和评估细节意味着，若现在实施该干预，就必须自行
+  猜测部分协议，无法保证忠实复现。
 
-## 14. Next stage
+因此，候选对照实验**没有实现，也没有运行**。此前的合成 S0 架构冒烟测试与本次
+新颖性核查无关，不能作为支持 H1 或 H2 的实验依据。
 
-Proceed to **Cross-Paper Shared Assumption Analysis**. Seek a falsifiable
-bottleneck with cross-model and cross-scene relevance rather than another
-GeoBridge-specific text-assignment module. Returning to observability would
-require a narrower question not already addressed by GeoBridge++ and a
-verified, compatible training interface.
+## 11. 最终 Go/No-Go 决策
 
-## 15. Evidence ledger
+### 【研究决策】NO-GO for direct method development
 
-| Claim | Status | Source / boundary |
+不继续将以下方案作为主要新算法贡献：
+
+- 用单视角生成文本直接替换 GeoBridge 的三视图统一文本；
+- 简单为各视觉分支分配相互独立的视角专属文本监督。
+
+原因是 GeoBridge++ 已经研究了同一宽泛局限，并实现了模态相关事实监督、共享事实
+监督及相应消融。原始宽泛方向的新颖性不足。
+
+本次 No-Go **不代表**：
+
+- H2 已经得到因果验证或被否定；
+- 统一文本监督一定有害；
+- GeoBridge++ 已经解决所有场景中的语义可观察性问题；
+- 整个文本增强多模态地理定位方向都应停止。
+
+本文不提出新的网络模块。
+
+## 12. 本次研究工作的收获
+
+本次分析形成了以下可复用的研究认识：
+
+1. 必须区分“文本作为训练监督”和“文本作为推理输入”。GeoBridge 的普通
+   图像—图像推理本来就是无文本的，因此错误的推理时文本消融不能回答该问题。
+2. “统一文本整体有效”与“统一文本中的每项语义都适合监督每个视角”是两个不同
+   命题。Table 8 支持前者，不能直接证明后者。
+3. H1 与 H2 是竞争性但可共存的解释，需要控制文本信息量、场景难度和训练随机性
+   才能进行因果区分。
+4. 新颖性核查应发生在方法实现之前。GeoBridge++ 已覆盖模态相关与共享事实监督，
+   因而避免了在高重叠方向上继续投入训练和实现成本。
+5. 论文报告实验、官方代码行为和本地复现实验必须保持独立证据等级。
+
+这些收获是对现有分析过程的整理，不是新的实验结论。
+
+## 13. 下一阶段研究方向
+
+下一阶段进入**跨论文共同假设分析（Cross-Paper Shared Assumption Analysis）**。
+研究重点应转向具有跨模型、跨场景意义的可证伪瓶颈，而不是继续设计只针对
+GeoBridge 的文本分配模块。
+
+如果未来重新研究语义可观察性，必须满足两个条件：
+
+1. 研究问题比 GeoBridge++ 已覆盖的范围更窄，并能清楚说明差异；
+2. 实验设计与已核验的训练/推理接口兼容，且能够隔离真正的因果变量。
+
+## 附录 A：证据台账
+
+| 研究陈述 | 证据状态 | 来源与边界 |
 | --- | --- | --- |
-| Unified three-view text is GeoBridge's semantic anchor | **[Paper Evidence]** | GeoBridge v3, Sec. 1 and 3.2 |
-| Training combines image–image and text–image losses | **[Paper Evidence]** | GeoBridge v3, Sec. 3.2, Eqs. (1)–(6) |
-| Image–image inference can be text-free | **[Paper Evidence]** | GeoBridge v3, Sec. 3.2 |
-| Combined alignment helps in the reported ablation | **[Experimental Evidence — paper-reported]** | GeoBridge v3, Sec. 5.4, Table 8; not locally reproduced |
-| Every text fact is observable by every view | **[Unverified]** | No phrase-level observability evidence found |
-| Unobservable semantics reduce GeoBridge performance | **[Unverified Hypothesis]** | Requires Sec. 9 experiment |
-| GeoBridge++ assigns facts by observable scope | **[Paper Evidence]** | GeoBridge++ v5, Sec. I and III-C.1 |
-| G+V+SH wins the reported fact-type ablation | **[Experimental Evidence — paper-reported]** | GeoBridge++ v5, Sec. V-D, Table XV; not locally reproduced |
-| GeoBridge++ strictly proves H2 | **Not supported** | Multiple causal variables change |
-| Simple view-specific text supervision is novel | **NO-GO** | High overlap with GeoBridge++ |
+| GeoBridge 使用三视图统一文本作为语义锚点 | **【论文证据】** | GeoBridge v3，Sec. 1、Sec. 3.2 |
+| 训练同时包含图像—图像与文本—图像损失 | **【论文证据】** | GeoBridge v3，Sec. 3.2，Eqs. (1)–(6) |
+| 图像—图像检索推理可以不使用文本 | **【论文证据】** | GeoBridge v3，Sec. 3.2 |
+| 联合对齐在论文消融中优于单独对齐 | **【实验依据：论文报告】** | GeoBridge v3，Sec. 5.4，Table 8；未本地复现 |
+| 每项文本事实都能被每个视角观察 | **【未验证】** | 未找到短语级可观察性证据 |
+| 不可观察语义降低 GeoBridge 性能 | **【未验证假设】** | 需要第 6 节候选实验 |
+| GeoBridge++ 按可观察范围分配事实监督 | **【论文证据】** | GeoBridge++ v5，Sec. I、Sec. III-C.1 |
+| G+V+SH 在论文事实类型消融中最优 | **【实验依据：论文报告】** | GeoBridge++ v5，Sec. V-D、Table XV；未本地复现 |
+| GeoBridge++ 严格证明了 H2 | **不支持** | 多个因果变量同时发生变化 |
+| 简单视角专属文本监督具有足够新颖性 | **【研究决策：NO-GO】** | 与 GeoBridge++ 高度重叠 |
